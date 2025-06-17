@@ -25,34 +25,33 @@
       font-size: 64px;
       margin-bottom: 20px;
     }
-    .button {
-      background-color: #142952;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      font-size: 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-      text-decoration: none;
-      display: inline-block;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="cancel-icon">❌</div>
     <h1>Pago cancelado</h1>
-    <p>Tu pago ha sido cancelado.</p>
     <p>Volviendo a la aplicación...</p>
-    <a href="mercaditogo://payment-cancel" class="button" id="return-button">Volver a la app</a>
   </div>
 
   <script>
-    // Intentar abrir la app automáticamente
-    setTimeout(function() {
-      window.location.href = "mercaditogo://payment-cancel";
-    }, 1000);
+    // Evitar múltiples redirecciones
+    let hasRedirected = false;
+    
+    // Función para intentar redireccionar una sola vez
+    function attemptRedirect() {
+      if (hasRedirected) return;
+      hasRedirected = true;
+      
+      // Redirigir a la app usando un marcador especial
+      window.location.href = `mercaditogo://payment-cancel?source=browser_redirect`;
+    }
+    
+    // Intentar redireccionar de inmediato
+    attemptRedirect();
+    
+    // Y también después de un pequeño retraso para asegurarnos
+    setTimeout(attemptRedirect, 500);
   </script>
 </body>
 </html>
