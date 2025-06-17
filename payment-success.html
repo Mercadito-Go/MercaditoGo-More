@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pago Exitoso - Mercadito Go</title>
   <style>
+    /* Estilos existentes */
     body {
       font-family: Arial, sans-serif;
       text-align: center;
@@ -25,37 +26,99 @@
       font-size: 64px;
       margin-bottom: 20px;
     }
+    .button {
+      background-color: #142952;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="success-icon">✅</div>
     <h1>¡Pago completado!</h1>
-    <p>Volviendo a la aplicación...</p>
+    <p>Regresando automáticamente a la aplicación...</p>
+    <div id="manual-return" class="hidden">
+      <p>Si no regresaste automáticamente, haz clic en el botón:</p>
+      <a href="#" id="return-button" class="button">Volver a la aplicación</a>
+    </div>
   </div>
 
   <script>
-    // Evitar múltiples redirecciones
-    let hasRedirected = false;
-    
-    // Función para intentar redireccionar una sola vez
-    function attemptRedirect() {
-      if (hasRedirected) return;
-      hasRedirected = true;
+    // Código más robusto para manejo de redirecciones cross-platform
+    (function() {
+      // Variables para controlar el estado
+      let redirectAttempted = false;
+      let sessionId = '';
       
-      // Obtener el ID de sesión
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id') || '';
+      // Extraer parámetros
+      function getSessionId() {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('session_id') || '';
+        } catch (e) {
+          console.error('Error obteniendo session_id:', e);
+          return '';
+        }
+      }
       
-      // Redirigir a la app usando un marcador especial para evitar múltiples navegadores
-      window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&source=browser_redirect`;
-    }
-    
-    // Intentar redireccionar de inmediato
-    attemptRedirect();
-    
-    // Y también después de un pequeño retraso para asegurarnos
-    setTimeout(attemptRedirect, 500);
+      // Intento de redirección usando el scheme personalizado
+      function redirectToApp() {
+        if (redirectAttempted) return;
+        redirectAttempted = true;
+        
+        try {
+          sessionId = getSessionId();
+          console.log('Session ID:', sessionId);
+          
+          // Prevenir cacheo con timestamp
+          const timestamp = new Date().getTime();
+          const redirectUrl = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+          
+          console.log('Intentando redirección a:', redirectUrl);
+          window.location.href = redirectUrl;
+          
+          // Si después de un tiempo seguimos en la página, mostrar el botón manual
+          setTimeout(function() {
+            document.getElementById('manual-return').classList.remove('hidden');
+          }, 2500);
+        } catch (e) {
+          console.error('Error en redirección:', e);
+          document.getElementById('manual-return').classList.remove('hidden');
+        }
+      }
+      
+      // Configurar el botón manual para intentar redirección de nuevo
+      document.getElementById('return-button').addEventListener('click', function(e) {
+        e.preventDefault();
+        try {
+          const timestamp = new Date().getTime();
+          window.location.href = `mercaditogo://payment-success?session_id=${sessionId || getSessionId()}&timestamp=${timestamp}&retry=true`;
+        } catch (e) {
+          console.error('Error en redirección manual:', e);
+        }
+      });
+      
+      // Iniciar redirección automática cuando la página esté cargada
+      if (document.readyState === 'complete') {
+        redirectToApp();
+      } else {
+        window.addEventListener('load', redirectToApp);
+      }
+      
+      // Intentar también inmediatamente (como respaldo)
+      setTimeout(redirectToApp, 300);
+    })();
   </script>
 </body>
 </html>

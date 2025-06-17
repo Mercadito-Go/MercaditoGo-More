@@ -25,33 +25,84 @@
       font-size: 64px;
       margin-bottom: 20px;
     }
+    .button {
+      background-color: #142952;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="cancel-icon">❌</div>
     <h1>Pago cancelado</h1>
-    <p>Volviendo a la aplicación...</p>
+    <p>Regresando automáticamente a la aplicación...</p>
+    <div id="manual-return" class="hidden">
+      <p>Si no regresaste automáticamente, haz clic en el botón:</p>
+      <a href="#" id="return-button" class="button">Volver a la aplicación</a>
+    </div>
   </div>
 
   <script>
-    // Evitar múltiples redirecciones
-    let hasRedirected = false;
-    
-    // Función para intentar redireccionar una sola vez
-    function attemptRedirect() {
-      if (hasRedirected) return;
-      hasRedirected = true;
+    // Código robusto para manejo de redirecciones cross-platform
+    (function() {
+      // Variables para controlar el estado
+      let redirectAttempted = false;
       
-      // Redirigir a la app usando un marcador especial
-      window.location.href = `mercaditogo://payment-cancel?source=browser_redirect`;
-    }
-    
-    // Intentar redireccionar de inmediato
-    attemptRedirect();
-    
-    // Y también después de un pequeño retraso para asegurarnos
-    setTimeout(attemptRedirect, 500);
+      // Intento de redirección usando el scheme personalizado
+      function redirectToApp() {
+        if (redirectAttempted) return;
+        redirectAttempted = true;
+        
+        try {
+          // Prevenir cacheo con timestamp
+          const timestamp = new Date().getTime();
+          const redirectUrl = `mercaditogo://payment-cancel?timestamp=${timestamp}`;
+          
+          console.log('Intentando redirección a:', redirectUrl);
+          window.location.href = redirectUrl;
+          
+          // Si después de un tiempo seguimos en la página, mostrar el botón manual
+          setTimeout(function() {
+            document.getElementById('manual-return').classList.remove('hidden');
+          }, 2500);
+        } catch (e) {
+          console.error('Error en redirección:', e);
+          document.getElementById('manual-return').classList.remove('hidden');
+        }
+      }
+      
+      // Configurar el botón manual para intentar redirección de nuevo
+      document.getElementById('return-button').addEventListener('click', function(e) {
+        e.preventDefault();
+        try {
+          const timestamp = new Date().getTime();
+          window.location.href = `mercaditogo://payment-cancel?timestamp=${timestamp}&retry=true`;
+        } catch (e) {
+          console.error('Error en redirección manual:', e);
+        }
+      });
+      
+      // Iniciar redirección automática cuando la página esté cargada
+      if (document.readyState === 'complete') {
+        redirectToApp();
+      } else {
+        window.addEventListener('load', redirectToApp);
+      }
+      
+      // Intentar también inmediatamente (como respaldo)
+      setTimeout(redirectToApp, 300);
+    })();
   </script>
 </body>
 </html>
