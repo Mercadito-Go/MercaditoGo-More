@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pago Exitoso - Mercadito Go</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      color: #333;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 30px 20px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .success-icon {
+      color: #4CAF50;
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .button {
+      background-color: #142952;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      text-decoration: none;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success-icon">✅</div>
+    <h1>¡Pago completado!</h1>
+    <p>Tu pago ha sido procesado correctamente.</p>
+    <p>Volviendo a la aplicación...</p>
+    <a href="mercaditogo://payment-success" class="button" id="return-button">Volver a la app</a>
+  </div>
+
+  <script>
+    // Extraer Session ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id') || '';
+    
+    // Actualizar el botón con el session_id
+    document.getElementById('return-button').href = 
+      `mercaditogo://payment-success?session_id=${sessionId}`;
+    
+    // Intentar abrir la app automáticamente
+    setTimeout(function() {
+      window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
+    }, 1000);
+    
+    // Si después de 2 segundos seguimos en esta página, mostrar mensaje
+    setTimeout(function() {
+      document.body.innerHTML += `
+        <div class="container" style="margin-top: 20px;">
+          <p>Si no regresaste automáticamente a la aplicación, haz clic en el botón de arriba.</p>
+          <p>También puedes cerrar esta ventana y volver manualmente a la aplicación.</p>
+        </div>
+      `;
+    }, 2000);
+  </script>
+</body>
+</html>
