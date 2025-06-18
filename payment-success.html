@@ -54,8 +54,8 @@
     </div>
   </div>
 
+  <!-- Modificar la sección de script para manejar mejor las redirecciones web/móvil -->
   <script>
-    // Código más robusto para manejo de redirecciones cross-platform
     (function() {
       // Variables para controlar el estado
       let redirectAttempted = false;
@@ -72,7 +72,15 @@
         }
       }
       
-      // Intento de redirección usando el scheme personalizado
+      // Detectar plataforma (web vs móvil)
+      function isRunningInWebApp() {
+        // Si tenemos hash en URL o estamos en un iframe, probablemente sea web
+        return window.location.href.includes('/#/') || 
+               window.location.href.includes('localhost') || 
+               window !== window.parent;
+      }
+      
+      // Redirigir según plataforma
       function redirectToApp() {
         if (redirectAttempted) return;
         redirectAttempted = true;
@@ -81,14 +89,22 @@
           sessionId = getSessionId();
           console.log('Session ID:', sessionId);
           
-          // Prevenir cacheo con timestamp
+          // Prevenir cacheo
           const timestamp = new Date().getTime();
-          const redirectUrl = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
           
-          console.log('Intentando redirección a:', redirectUrl);
-          window.location.href = redirectUrl;
+          // Determinar tipo de redirección
+          if (isRunningInWebApp()) {
+            // Redirección web usando rutas hash
+            console.log('Detectada plataforma web, redirigiendo internamente');
+            const baseUrl = window.location.href.split('#')[0];
+            window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+          } else {
+            // Redirección con deep link para móvil
+            console.log('Asumiendo plataforma móvil, usando deep link');
+            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+          }
           
-          // Si después de un tiempo seguimos en la página, mostrar el botón manual
+          // Mostrar botón manual después de un tiempo
           setTimeout(function() {
             document.getElementById('manual-return').classList.remove('hidden');
           }, 2500);
@@ -98,26 +114,15 @@
         }
       }
       
-      // Configurar el botón manual para intentar redirección de nuevo
-      document.getElementById('return-button').addEventListener('click', function(e) {
-        e.preventDefault();
-        try {
-          const timestamp = new Date().getTime();
-          window.location.href = `mercaditogo://payment-success?session_id=${sessionId || getSessionId()}&timestamp=${timestamp}&retry=true`;
-        } catch (e) {
-          console.error('Error en redirección manual:', e);
-        }
-      });
-      
-      // Iniciar redirección automática cuando la página esté cargada
+      // Configurar redirección cuando la página esté lista
       if (document.readyState === 'complete') {
         redirectToApp();
       } else {
         window.addEventListener('load', redirectToApp);
       }
       
-      // Intentar también inmediatamente (como respaldo)
-      setTimeout(redirectToApp, 300);
+      // Intentar también con pequeño retraso
+      setTimeout(redirectToApp, 500);
     })();
   </script>
 </body>
