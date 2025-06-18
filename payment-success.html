@@ -99,15 +99,20 @@
             const baseUrl = window.location.href.split('#')[0];
             window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
           } else {
-            // Redirección con deep link para móvil
+            // Redirección con deep link para móvil - doble verificación de esquema
             console.log('Asumiendo plataforma móvil, usando deep link');
-            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+            
+            // Primer intento con esquema de app
+            setTimeout(function() {
+              if (!redirectAttempted) return;
+              window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+              
+              // Backup - Segundo intento con HTTP scheme si el primero falla
+              setTimeout(function() {
+                document.getElementById('manual-return').classList.remove('hidden');
+              }, 1500);
+            }, 300);
           }
-          
-          // Mostrar botón manual después de un tiempo
-          setTimeout(function() {
-            document.getElementById('manual-return').classList.remove('hidden');
-          }, 2500);
         } catch (e) {
           console.error('Error en redirección:', e);
           document.getElementById('manual-return').classList.remove('hidden');
@@ -121,7 +126,13 @@
         window.addEventListener('load', redirectToApp);
       }
       
-      // Intentar también con pequeño retraso
+      // Botón manual para reintentar
+      document.getElementById('return-button').addEventListener('click', function() {
+        redirectAttempted = false;
+        redirectToApp();
+      });
+      
+      // Intentar también con pequeño retraso para browser compatibility
       setTimeout(redirectToApp, 500);
     })();
   </script>
