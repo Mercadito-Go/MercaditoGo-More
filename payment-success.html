@@ -1,45 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pago Exitoso - Mercadito Go</title>
+  <meta name="theme-color" content="#142952">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* Estilos existentes */
     body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
+      font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
       color: #333;
-      background-color: #f5f5f5;
     }
     .container {
-      max-width: 500px;
-      margin: 0 auto;
-      padding: 30px 20px;
+      text-align: center;
       background-color: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      max-width: 90%;
+      width: 400px;
     }
     .success-icon {
-      color: #4CAF50;
-      font-size: 64px;
-      margin-bottom: 20px;
+      font-size: 48px;
+      margin-bottom: 16px;
     }
     .button {
       background-color: #142952;
       color: white;
-      border: none;
       padding: 12px 24px;
+      font-weight: bold;
       font-size: 16px;
-      border-radius: 4px;
+      border-radius: 8px;
       cursor: pointer;
       margin-top: 20px;
       text-decoration: none;
       display: inline-block;
+      border: none;
     }
     .hidden {
       display: none;
+    }
+    .button-secondary {
+      background-color: #e9ecef;
+      color: #495057;
+      margin-top: 12px;
+    }
+    #countdown {
+      font-weight: bold;
+      color: #142952;
+    }
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid rgba(20, 41, 82, 0.3);
+      border-radius: 50%;
+      border-top-color: #142952;
+      animation: spin 1s ease-in-out infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -47,93 +76,319 @@
   <div class="container">
     <div class="success-icon">✅</div>
     <h1>¡Pago completado!</h1>
+    <div class="spinner" id="loadingSpinner"></div>
     <p>Regresando automáticamente a la aplicación...</p>
+    <p id="countdownText">Redirigiendo en <span id="countdown">5</span> segundos</p>
+    
     <div id="manual-return" class="hidden">
-      <p>Si no regresaste automáticamente, haz clic en el botón:</p>
-      <a href="#" id="return-button" class="button">Volver a la aplicación</a>
+      <p>Si no regresaste automáticamente, usa una de estas opciones:</p>
+      <button id="return-button" class="button">Volver a la aplicación</button>
+      <br>
+      <button id="copy-button" class="button button-secondary hidden">Copiar código de verificación</button>
     </div>
   </div>
 
-  <!-- Modificar la sección de script para manejar mejor las redirecciones web/móvil -->
   <script>
     (function() {
       // Variables para controlar el estado
       let redirectAttempted = false;
       let sessionId = '';
+      let redirectMethods = 0;
+      let countdownSeconds = 5;
+      let countdownTimer;
+      let sessionIdCopied = false;
       
-      // Extraer parámetros
+      // Extraer el session_id
       function getSessionId() {
         try {
           const urlParams = new URLSearchParams(window.location.search);
-          return urlParams.get('session_id') || '';
+          const id = urlParams.get('session_id') || '';
+          
+          // Si no tenemos session_id en los parámetros, intentar extraerlo de la URL
+          if (!id) {
+            const pathSegments = window.location.pathname.split('/');
+            for (let segment of pathSegments) {
+              if (segment.startsWith('cs_')) {
+                return segment;
+              }
+            }
+          }
+          
+          return id;
         } catch (e) {
           console.error('Error obteniendo session_id:', e);
           return '';
         }
       }
       
-      // Detectar plataforma (web vs móvil)
-      function isRunningInWebApp() {
-        // Si tenemos hash en URL o estamos en un iframe, probablemente sea web
-        return window.location.href.includes('/#/') || 
-               window.location.href.includes('localhost') || 
-               window !== window.parent;
+      // Detectar plataforma
+      function detectPlatform() {
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        
+        // Detectar si estamos en la app web
+        if (window.location.href.includes('/#/') || 
+            window.location.href.includes('localhost') || 
+            window !== window.parent) {
+          return 'web';
+        }
+        
+        // Detectar iOS
+        if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+          return 'ios';
+        }
+        
+        // Detectar Android
+        if (/android/i.test(userAgent)) {
+          return 'android';
+        }
+        
+        return 'unknown';
+      }
+      
+      // Actualizar contador
+      function updateCountdown() {
+        const countdownElement = document.getElementById('countdown');
+        if (!countdownElement) return;
+        
+        countdownSeconds--;
+        countdownElement.textContent = countdownSeconds;
+        
+        if (countdownSeconds <= 0) {
+          clearInterval(countdownTimer);
+          redirectToApp();
+        }
+      }
+      
+      // Iniciar contador
+      function startCountdown() {
+        countdownTimer = setInterval(updateCountdown, 1000);
+      }
+      
+      // Configurar botones
+      function setupButtons() {
+        const returnButton = document.getElementById('return-button');
+        const copyButton = document.getElementById('copy-button');
+        
+        if (returnButton) {
+          returnButton.addEventListener('click', function() {
+            redirectAttempted = false;
+            redirectToApp();
+          });
+        }
+        
+        if (copyButton) {
+          copyButton.addEventListener('click', function() {
+            if (sessionId && !sessionIdCopied) {
+              navigator.clipboard.writeText(sessionId).then(function() {
+                copyButton.textContent = '✓ Código copiado';
+                sessionIdCopied = true;
+                setTimeout(() => {
+                  copyButton.textContent = 'Copiar código de verificación';
+                  sessionIdCopied = false;
+                }, 3000);
+              }).catch(function() {
+                // Fallback por si falla clipboard API
+                const textarea = document.createElement('textarea');
+                textarea.value = sessionId;
+                textarea.style.position = 'fixed';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                try {
+                  document.execCommand('copy');
+                  copyButton.textContent = '✓ Código copiado';
+                  sessionIdCopied = true;
+                } catch (e) {
+                  copyButton.textContent = 'Error al copiar';
+                }
+                
+                document.body.removeChild(textarea);
+              });
+            }
+          });
+        }
+      }
+      
+      // NUEVO: Verificar si estamos en una pestaña abierta por otra
+      function checkIfOpenedByStripe() {
+        // Si tenemos una ventana que nos abrió y es Stripe Checkout
+        if (window.opener && !window.opener.closed) {
+          try {
+            // Verificar si es una pestaña de Stripe Checkout
+            const isStripeOpener = window.opener.location.href.includes('checkout.stripe.com');
+            const isFromOurApp = window.opener.location.href.includes('mercadito');
+            
+            // Si fue abierta por nuestra app o por Stripe
+            if (isStripeOpener || isFromOurApp) {
+              console.log('Detectada pestaña abierta por Stripe/App, notificando a ventana original');
+              
+              sessionId = getSessionId();
+              console.log('Session ID para comunicar:', sessionId);
+              
+              // Notificar a la ventana original sobre el éxito del pago
+              try {
+                // Primero intentar usar la ventana original directamente
+                window.opener.postMessage({
+                  type: 'PAYMENT_SUCCESS',
+                  sessionId: sessionId,
+                  timestamp: new Date().getTime()
+                }, '*');
+                
+                // Redirigir la ventana original
+                const timestamp = new Date().getTime();
+                if (isFromOurApp) {
+                  window.opener.location.href = `${window.opener.location.origin}${window.opener.location.pathname}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+                }
+                
+                // Cerrar esta pestaña después de un breve retraso
+                setTimeout(() => {
+                  window.close();
+                }, 1000);
+                
+                return true;
+              } catch (e) {
+                console.error('Error comunicando con ventana original:', e);
+              }
+            }
+          } catch (e) {
+            console.error('Error verificando opener:', e);
+          }
+        }
+        return false;
       }
       
       // Redirigir según plataforma
       function redirectToApp() {
-        if (redirectAttempted) return;
+        // NUEVO: Primero verificar si estamos en una pestaña abierta por Stripe
+        if (checkIfOpenedByStripe()) {
+          console.log('Manejado como pestaña de Stripe, no es necesario redireccionar');
+          return;
+        }
+        
+        if (redirectAttempted && redirectMethods >= 3) return;
         redirectAttempted = true;
+        redirectMethods++;
         
         try {
           sessionId = getSessionId();
           console.log('Session ID:', sessionId);
           
+          // Ocultar spinner después de primer intento
+          if (redirectMethods > 1) {
+            const spinner = document.getElementById('loadingSpinner');
+            if (spinner) spinner.style.display = 'none';
+          }
+          
           // Prevenir cacheo
           const timestamp = new Date().getTime();
+          const platform = detectPlatform();
+          
+          console.log('Plataforma detectada:', platform);
           
           // Determinar tipo de redirección
-          if (isRunningInWebApp()) {
-            // Redirección web usando rutas hash
-            console.log('Detectada plataforma web, redirigiendo internamente');
-            const baseUrl = window.location.href.split('#')[0];
-            window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-          } else {
-            // Redirección con deep link para móvil - doble verificación de esquema
-            console.log('Asumiendo plataforma móvil, usando deep link');
-            
-            // Primer intento con esquema de app
-            setTimeout(function() {
-              if (!redirectAttempted) return;
+          switch (platform) {
+            case 'web':
+              // Redirección web
+              console.log('Redirigiendo web con hash');
+              const baseUrl = window.location.href.split('#')[0];
+              window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+              break;
+              
+            case 'ios':
+              // Universal Links para iOS
+              console.log('Redirigiendo iOS con Universal Link');
+              window.location.href = `https://mercadito-go.github.io/MercaditoGo/success?session_id=${sessionId}&timestamp=${timestamp}`;
+              
+              // Mostrar opciones manuales después de un tiempo
+              setTimeout(showManualOptions, 2500);
+              break;
+              
+            case 'android':
+              // Deep Links para Android
+              console.log('Redirigiendo Android con Deep Link');
               window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
               
-              // Backup - Segundo intento con HTTP scheme si el primero falla
+              // Esquema alternativo como respaldo
               setTimeout(function() {
-                document.getElementById('manual-return').classList.remove('hidden');
+                if (redirectMethods < 3) {
+                  console.log('Intento alternativo Android');
+                  window.location.href = `com.example.mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+                  
+                  // Mostrar opciones manuales después
+                  setTimeout(showManualOptions, 1500);
+                }
               }, 1500);
-            }, 300);
+              break;
+              
+            default:
+              // Plataforma desconocida - intentar ambos métodos
+              console.log('Plataforma desconocida, intentando múltiples métodos');
+              
+              // Intentar deep link primero
+              window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+              
+              // Luego intentar web
+              setTimeout(function() {
+                if (redirectMethods < 3) {
+                  const baseUrl = window.location.href.split('#')[0];
+                  window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+                  
+                  // Mostrar opciones manuales
+                  setTimeout(showManualOptions, 1000);
+                }
+              }, 1500);
           }
         } catch (e) {
           console.error('Error en redirección:', e);
-          document.getElementById('manual-return').classList.remove('hidden');
+          showManualOptions();
         }
       }
       
-      // Configurar redirección cuando la página esté lista
-      if (document.readyState === 'complete') {
-        redirectToApp();
-      } else {
-        window.addEventListener('load', redirectToApp);
+      // Mostrar opciones manuales
+      function showManualOptions() {
+        const manualReturn = document.getElementById('manual-return');
+        const countdownText = document.getElementById('countdownText');
+        const spinner = document.getElementById('loadingSpinner');
+        
+        if (manualReturn) manualReturn.classList.remove('hidden');
+        if (countdownText) countdownText.style.display = 'none';
+        if (spinner) spinner.style.display = 'none';
+        
+        // Mostrar botón para copiar session_id si está disponible
+        if (sessionId) {
+          const copyButton = document.getElementById('copy-button');
+          if (copyButton) copyButton.classList.remove('hidden');
+        }
       }
       
-      // Botón manual para reintentar
-      document.getElementById('return-button').addEventListener('click', function() {
-        redirectAttempted = false;
-        redirectToApp();
-      });
+      // Inicialización
+      function init() {
+        setupButtons();
+        
+        // NUEVO: Verificar primero si somos una pestaña abierta por Stripe
+        if (checkIfOpenedByStripe()) {
+          // Ya se manejó en la función, no es necesario hacer más
+          console.log('Manejado como pestaña secundaria de Stripe');
+          return;
+        }
+        
+        // Continuar con el flujo normal
+        startCountdown();
+        
+        // Intentar redirección automática después de un breve retraso
+        setTimeout(redirectToApp, 300);
+        
+        // Mostrar opciones manuales después de un tiempo máximo
+        setTimeout(showManualOptions, 8000);
+      }
       
-      // Intentar también con pequeño retraso para browser compatibility
-      setTimeout(redirectToApp, 500);
+      // Iniciar cuando la página esté cargada
+      if (document.readyState === 'complete') {
+        init();
+      } else {
+        window.addEventListener('load', init);
+      }
     })();
   </script>
 </body>
