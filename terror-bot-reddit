@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reddit Redirect</title>
+  <meta http-equiv="refresh" content="3;url=https://www.reddit.com">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 100px;
+      color: #444;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Autenticación Exitosa</h1>
+    <p>Gracias por autenticar tu aplicación con Reddit.</p>
+    <p>Serás redirigido a Reddit en unos segundos...</p>
+  </div>
+</body>
+</html>
