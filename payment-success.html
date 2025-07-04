@@ -3,409 +3,84 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pago Exitoso - Mercadito Go</title>
-  <meta name="theme-color" content="#142952">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  <title>Mercadito Go - Procesamiento de Pagos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background-color: #f8f9fa;
+    :root {
+      --primary: #001f5b;
+      --accent: #db9c4a;
+      --background: #f9f9f9;
+      --card-bg: #ffffff;
+      --text: #222;
+    }
+
+    * {
       margin: 0;
       padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--background);
+      color: var(--text);
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       min-height: 100vh;
-      color: #333;
+      padding: 20px;
     }
-    .container {
+
+    .card {
+      background: var(--card-bg);
+      padding: 40px 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
       text-align: center;
-      background-color: white;
-      border-radius: 12px;
-      padding: 32px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-      max-width: 90%;
-      width: 400px;
+      max-width: 480px;
+      animation: fadeIn 0.8s ease;
     }
+
     .logo {
-      max-width: 120px;
-      margin: 0 auto 16px;
+      max-width: 180px;
+      margin: 0 auto 20px;
       display: block;
     }
-    .success-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-      color: #2b8a3e;
+
+    h1 {
+      font-size: 2rem;
+      color: var(--primary);
+      margin-bottom: 10px;
     }
-    .button {
-      background-color: #142952;
-      color: white;
-      padding: 12px 24px;
-      font-weight: bold;
-      font-size: 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 20px;
-      text-decoration: none;
-      display: inline-block;
-      border: none;
-      transition: background-color 0.2s;
+
+    p {
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #444;
     }
-    .button:hover {
-      background-color: #0e1c3c;
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-    .hidden {
-      display: none;
-    }
-    .button-secondary {
-      background-color: #e9ecef;
-      color: #495057;
-      margin-top: 12px;
-    }
-    .button-secondary:hover {
-      background-color: #dee2e6;
-    }
-    #countdown {
-      font-weight: bold;
-      color: #142952;
-    }
-    .spinner {
-      width: 30px;
-      height: 30px;
-      border: 3px solid rgba(20, 41, 82, 0.3);
-      border-radius: 50%;
-      border-top-color: #142952;
-      animation: spin 1s ease-in-out infinite;
-      margin: 0 auto 20px;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 30px 20px;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="success-content">
-      <img src="MERCADITOGO COLOR PNG.png" alt="Logo Mercadito Go" class="logo">
-      <div class="success-icon">✓</div>
-      <h1>¡Pago Exitoso!</h1>
-      <p>Tu pago ha sido procesado correctamente.</p>
-      <p id="countdownText">Regresando a la aplicación en <span id="countdown">5</span> segundos...</p>
-      <div id="loadingSpinner" class="spinner"></div>
-      
-      <p style="margin-top: 15px; color: #2b8a3e;">
-        Si la aplicación no se abre automáticamente, utiliza el botón a continuación.
-      </p>
-      
-      <div id="manual-return">
-        <button id="return-button" class="button">Regresar a la Aplicación</button>
-      </div>
-      <button id="copy-button" class="button button-secondary hidden">Copiar código de verificación</button>
-    </div>
+  <div class="card">
+    <img src="MERCADITOGO COLOR PNG.png" alt="Logo Mercadito Go" class="logo">
+    <h1>Mercadito Go</h1>
+    <p>Esta página forma parte del sistema seguro de procesamiento de pagos.</p>
+    <p>Por favor, regresa a la aplicación para continuar tu compra.</p>
   </div>
-
-  <script>
-    (function() {
-      // Variables para controlar el estado
-      let redirectAttempted = false;
-      let sessionId = '';
-      let countdownSeconds = 5;
-      let countdownTimer;
-      let sessionIdCopied = false;
-      
-      // Extraer el session_id de manera más robusta
-      function getSessionId() {
-        try {
-          // Revisar en los parámetros de la URL
-          const urlParams = new URLSearchParams(window.location.search);
-          let id = urlParams.get('session_id');
-          
-          if (id && id.trim() !== '') {
-            console.log('Session ID encontrado en parámetros URL:', id);
-            return id;
-          }
-          
-          // Buscar en el fragmento de la URL (después del #)
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          id = hashParams.get('session_id');
-          
-          if (id && id.trim() !== '') {
-            console.log('Session ID encontrado en fragmento URL:', id);
-            return id;
-          }
-          
-          // Buscar patrones cs_test_ o cs_live_ en la URL completa
-          const urlString = window.location.href;
-          const csMatch = urlString.match(/cs_(test|live)_[a-zA-Z0-9]+/);
-          
-          if (csMatch && csMatch[0]) {
-            console.log('Session ID encontrado con regex:', csMatch[0]);
-            return csMatch[0];
-          }
-          
-          // Intentar extraer de la ruta de la URL
-          const pathSegments = window.location.pathname.split('/');
-          for (let segment of pathSegments) {
-            if (segment.startsWith('cs_')) {
-              console.log('Session ID encontrado en path:', segment);
-              return segment;
-            }
-          }
-          
-          console.warn('No se pudo encontrar Session ID');
-          return '';
-        } catch (e) {
-          console.error('Error obteniendo session_id:', e);
-          return '';
-        }
-      }
-      
-      // Actualizar contador con manejo de errores mejorado
-      function updateCountdown() {
-        try {
-          const countdownElement = document.getElementById('countdown');
-          if (!countdownElement) {
-            console.error('Elemento countdown no encontrado');
-            return;
-          }
-          
-          countdownSeconds--;
-          countdownElement.textContent = countdownSeconds;
-          console.log('Contador actualizado:', countdownSeconds);
-          
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            redirectToApp();
-          }
-        } catch (e) {
-          console.error('Error en updateCountdown:', e);
-        }
-      }
-      
-      // Iniciar contador con verificación
-      function startCountdown() {
-        try {
-          console.log('Iniciando contador de redirección...');
-          // Limpiar cualquier temporizador existente
-          if (countdownTimer) {
-            clearInterval(countdownTimer);
-          }
-          countdownTimer = setInterval(updateCountdown, 1000);
-          
-          // Como respaldo, programar redirección después de 6 segundos
-          setTimeout(function() {
-            if (!redirectAttempted) {
-              console.log('Activando redirección de respaldo después de timeout');
-              redirectToApp();
-            }
-          }, 6000);
-        } catch (e) {
-          console.error('Error en startCountdown:', e);
-        }
-      }
-      
-      // Función para comunicar el session_id a la ventana principal
-      function communicateToParent() {
-        if (!sessionId) return false;
-        
-        console.log('Intentando comunicar session_id a la ventana principal:', sessionId);
-        let successful = false;
-        
-        // Método 1: Llamar a la función global si existe
-        if (window.opener && !window.opener.closed) {
-          try {
-            if (typeof window.opener.procesarPagoExitoso === 'function') {
-              const result = window.opener.procesarPagoExitoso(sessionId);
-              console.log('Llamada a procesarPagoExitoso:', result ? 'exitosa' : 'pendiente');
-              successful = true;
-            }
-          } catch (e) {
-            console.error('Error llamando a procesarPagoExitoso:', e);
-          }
-          
-          // Método 2: postMessage para comunicación más segura entre dominios
-          try {
-            window.opener.postMessage({
-              type: 'PAYMENT_SUCCESS',
-              sessionId: sessionId,
-              timestamp: new Date().getTime()
-            }, '*');
-            console.log('Mensaje postMessage enviado');
-            successful = true;
-          } catch (e) {
-            console.error('Error con postMessage:', e);
-          }
-          
-          // Método 3: Usar localStorage como último recurso
-          try {
-            window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
-            window.opener.localStorage.setItem('mg_payment_success', 'true');
-            window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-            console.log('Datos guardados en localStorage de la ventana principal');
-            successful = true;
-          } catch (e) {
-            console.error('Error con localStorage:', e);
-          }
-        }
-        
-        // También guardar en localStorage local para posible recuperación
-        try {
-          localStorage.setItem('mg_stripe_session_id', sessionId);
-          localStorage.setItem('mg_payment_success', 'true');
-          localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-          console.log('Datos guardados en localStorage local');
-        } catch (e) {
-          console.error('Error con localStorage local:', e);
-        }
-        
-        return successful;
-      }
-      
-      // Función de redirección mejorada
-      function redirectToApp() {
-        if (redirectAttempted) return;
-        redirectAttempted = true;
-        
-        console.log('Intentando redirigir a la aplicación principal...');
-        
-        // 1. Comunicar a la ventana principal
-        communicateToParent();
-        
-        // 2. Intentar cerrar esta ventana después de una pequeña demora
-        setTimeout(() => {
-          try {
-            if (window.opener && !window.opener.closed) {
-              console.log('Intentando cerrar la ventana...');
-              window.close();
-            }
-          } catch (e) {
-            console.error('Error al cerrar ventana:', e);
-          }
-          
-          // 3. Si no se puede cerrar, redirigir
-          const baseUrl = window.location.hostname.includes('github.io') 
-            ? 'https://mercaditogo.com'
-            : window.location.origin;
-            
-          console.log('Redirigiendo a:', baseUrl);
-          window.location.href = baseUrl;
-        }, 500);
-      }
-      
-      // Configurar botones y eventos
-      function setupUI() {
-        // Obtener y guardar session_id
-        sessionId = getSessionId();
-        
-        // Configurar botón de regreso manual
-        const returnButton = document.getElementById('return-button');
-        if (returnButton) {
-          returnButton.addEventListener('click', function() {
-            console.log('Botón de regreso presionado');
-            redirectAttempted = false; // Permitir un nuevo intento
-            redirectToApp();
-          });
-        }
-        
-        // Configurar botón de copia si hay sessionId
-        if (sessionId) {
-          const copyButton = document.getElementById('copy-button');
-          if (copyButton) {
-            copyButton.classList.remove('hidden');
-            copyButton.addEventListener('click', function() {
-              navigator.clipboard.writeText(sessionId).then(function() {
-                copyButton.textContent = '✓ Código copiado';
-                setTimeout(() => {
-                  copyButton.textContent = 'Copiar código de verificación';
-                }, 2000);
-              }).catch(function(e) {
-                console.error('Error copiando al portapapeles:', e);
-                
-                // Fallback para navegadores que no soportan clipboard API
-                const textarea = document.createElement('textarea');
-                textarea.value = sessionId;
-                document.body.appendChild(textarea);
-                textarea.select();
-                
-                try {
-                  document.execCommand('copy');
-                  copyButton.textContent = '✓ Código copiado';
-                } catch (e) {
-                  copyButton.textContent = 'Error al copiar';
-                  console.error('Error con método alternativo de copia:', e);
-                }
-                
-                setTimeout(() => {
-                  copyButton.textContent = 'Copiar código de verificación';
-                }, 2000);
-                
-                document.body.removeChild(textarea);
-              });
-            });
-          }
-        }
-      }
-      
-      // Función para verificar si fuimos abiertos por Stripe y comunicar el resultado
-      function handleStripeOpener() {
-        if (window.opener && !window.opener.closed) {
-          console.log('Detectada ventana que nos abrió');
-          
-          // Obtener session_id
-          const id = getSessionId();
-          if (!id) {
-            console.warn('No se encontró session_id para comunicar');
-            return false;
-          }
-          
-          sessionId = id;
-          
-          // Comunicar a la ventana principal
-          const communicated = communicateToParent();
-          
-          if (communicated) {
-            console.log('Comunicación exitosa con ventana principal');
-            
-            // No cerrar automáticamente, dejar que el usuario lo haga
-            // Mostrar interfaz con el botón de regreso
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            const countdownText = document.getElementById('countdownText');
-            
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
-            if (countdownText) countdownText.style.display = 'none';
-            
-            return true;
-          }
-        }
-        
-        return false;
-      }
-      
-      // Inicialización principal
-      function init() {
-        console.log('Inicializando página de pago exitoso');
-        
-        // Configurar UI
-        setupUI();
-        
-        // Verificar si fuimos abiertos por Stripe
-        const isStripeReturn = handleStripeOpener();
-        
-        // Si no venimos de Stripe, iniciar cuenta regresiva
-        if (!isStripeReturn) {
-          startCountdown();
-        }
-      }
-      
-      // Ejecutar cuando el DOM esté listo
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-      } else {
-        init();
-      }
-    })();
-  </script>
 </body>
 </html>
