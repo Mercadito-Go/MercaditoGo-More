@@ -263,38 +263,45 @@
         return successful;
       }
       
-      // Función de redirección mejorada
+      // Reemplazar la función de retorno actual con esta versión mejorada
       function redirectToApp() {
         if (redirectAttempted) return;
         redirectAttempted = true;
         
-        console.log('Intentando redirigir a la aplicación principal...');
+        console.log('Redirigiendo a la aplicación principal...');
         
-        // 1. Comunicar a la ventana principal
+        // Comunicar a la ventana principal
         communicateToParent();
         
-        // 2. Intentar múltiples métodos de redirección
+        // 1. Intentar usar el esquema URI personalizado (deep link)
         try {
-          // Método 1: Deep link específico de la app
-          window.location.href = 'mercaditogo://payment-success?timestamp=' + new Date().getTime();
-          
-          // Método 2: Esquema URL alternativo (después de un breve retraso)
+          window.location.href = 'mercaditogo://payment/success?session_id=' + 
+            sessionId + '&timestamp=' + new Date().getTime();
+            
+          // 2. Intentar abrir URL web normal como respaldo
           setTimeout(function() {
-            try {
-              window.location.replace('mercaditogo://payment/success');
-            } catch (e) {
-              console.error('Error en redirección alternativa:', e);
+            // Si estamos en github.io, ir a la web de producción
+            if (window.location.hostname.includes('github.io')) {
+              window.location.replace('https://mercaditogo.com');
+            } else {
+              // Ir a la raíz del sitio local
+              window.location.replace('/');
             }
-          }, 1000);
+          }, 2000);
           
-          // Método 3: Cierre de ventana (para casos donde la ventana fue abierta por la app)
-          setTimeout(() => {
+          // 3. Como último recurso, intentar cerrar esta ventana si fue abierta por la app
+          setTimeout(function() {
             if (window.opener && !window.opener.closed) {
               window.close();
             }
-          }, 2000);
+          }, 3000);
         } catch (e) {
           console.error('Error en redirección:', e);
+          
+          // Intentar redirección directa si falla el esquema URI
+          window.location.href = window.location.hostname.includes('github.io')
+            ? 'https://mercaditogo.com'
+            : '/';
         }
       }
       
