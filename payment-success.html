@@ -216,59 +216,55 @@
       
       // NUEVO: Verificar si estamos en una pestaña abierta por otra
       function checkIfOpenedByStripe() {
-        // Si tenemos una ventana que nos abrió
         if (window.opener && !window.opener.closed) {
           try {
-            // Extraer el session_id de la URL
             const sessionId = getSessionId();
-            console.log('Session ID para comunicar:', sessionId);
+            console.log('💳 Session ID encontrado:', sessionId);
             
             if (sessionId) {
-              // Intentar todas las formas posibles de comunicación
+              // Múltiples métodos de comunicación por orden de preferencia
               
-              // 1. postMessage con retry
-              const maxRetries = 5;
-              let retryCount = 0;
-              
-              function attemptPostMessage() {
-                try {
-                  const messageObj = {
-                    type: 'PAYMENT_SUCCESS',
-                    sessionId: sessionId,
-                    timestamp: new Date().getTime()
-                  };
-                  console.log('Enviando mensaje a ventana principal:', messageObj);
-                  window.opener.postMessage(messageObj, '*');
-                  console.log(`Mensaje enviado a ventana principal (intento ${retryCount+1})`);
-                  
-                  // Continuar intentando si aún no alcanzamos el máximo
-                  if (++retryCount < maxRetries) {
-                    setTimeout(attemptPostMessage, 1000);
-                  }
-                } catch (e) {
-                  console.error('Error enviando mensaje:', e);
+              // 1. Llamar directamente a la función global processStripePayment
+              try {
+                if (typeof window.opener.processStripePayment === 'function') {
+                  const result = window.opener.processStripePayment(sessionId);
+                  console.log('Llamada directa a processStripePayment:', result ? 'exitosa' : 'pendiente');
+                } else {
+                  console.warn('Función processStripePayment no disponible');
                 }
+              } catch (e) {
+                console.error('Error llamando a processStripePayment:', e);
               }
               
-              // Iniciar intentos de comunicación
-              attemptPostMessage();
+              // 2. Usar postMessage como respaldo
+              try {
+                window.opener.postMessage({
+                  type: 'PAYMENT_SUCCESS',
+                  sessionId: sessionId,
+                  timestamp: new Date().getTime()
+                }, '*');
+                console.log('Mensaje postMessage enviado');
+              } catch (e) {
+                console.error('Error con postMessage:', e);
+              }
               
-              // 2. Actualizar localStorage (aún más importante)
+              // 3. Actualizar localStorage directamente como último recurso
               try {
                 window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
                 window.opener.localStorage.setItem('mg_payment_success', 'true');
                 window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-                console.log('Datos guardados en localStorage de ventana principal');
+                window.opener.localStorage.setItem('mg_payment_pending', 'true');
+                console.log('Datos guardados en localStorage');
               } catch (e) {
                 console.error('Error guardando en localStorage:', e);
               }
               
-              // 3. Cerrar esta ventana después de asegurar comunicación
-              setTimeout(() => window.close(), 3000);
+              // Cerrar ventana después de comunicar
+              setTimeout(() => window.close(), 2000);
               return true;
             }
           } catch (e) {
-            console.error('Error en checkIfOpenedByStripe:', e);
+            console.error('Error general:', e);
           }
         }
         return false;
