@@ -224,21 +224,34 @@
             console.log('Session ID para comunicar:', sessionId);
             
             if (sessionId) {
-              // Intentar múltiples formas de comunicación con la ventana principal
+              // Intentar todas las formas posibles de comunicación
               
-              // 1. Método directo de postMessage
-              try {
-                window.opener.postMessage({
-                  type: 'PAYMENT_SUCCESS',
-                  sessionId: sessionId,
-                  timestamp: new Date().getTime()
-                }, '*');
-                console.log('Mensaje enviado a ventana principal via postMessage');
-              } catch (e) {
-                console.error('Error enviando mensaje via postMessage:', e);
+              // 1. postMessage con retry
+              const maxRetries = 5;
+              let retryCount = 0;
+              
+              function attemptPostMessage() {
+                try {
+                  window.opener.postMessage({
+                    type: 'PAYMENT_SUCCESS',
+                    sessionId: sessionId,
+                    timestamp: new Date().getTime()
+                  }, '*');
+                  console.log(`Mensaje enviado a ventana principal (intento ${retryCount+1})`);
+                  
+                  // Continuar intentando si aún no alcanzamos el máximo
+                  if (++retryCount < maxRetries) {
+                    setTimeout(attemptPostMessage, 1000);
+                  }
+                } catch (e) {
+                  console.error('Error enviando mensaje:', e);
+                }
               }
               
-              // 2. Intentar actualizar localStorage de la ventana principal
+              // Iniciar intentos de comunicación
+              attemptPostMessage();
+              
+              // 2. Actualizar localStorage (aún más importante)
               try {
                 window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
                 window.opener.localStorage.setItem('mg_payment_success', 'true');
@@ -248,36 +261,8 @@
                 console.error('Error guardando en localStorage:', e);
               }
               
-              // 3. Intentar redirección de la ventana principal
-              try {
-                const timestamp = new Date().getTime();
-                const currentUrl = window.opener.location.href;
-                
-                // Solo redirigir si no estamos ya en la página de éxito
-                if (!currentUrl.includes('payment-success')) {
-                  // Construir URL con parámetros para aplicación Flutter
-                  let redirectUrl;
-                  if (currentUrl.includes('#/')) {
-                    // Ya tiene un fragmento, añadir payment-success
-                    redirectUrl = `${currentUrl.split('#')[0]}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-                  } else {
-                    // Sin fragmento, añadir uno nuevo
-                    redirectUrl = `${currentUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-                  }
-                  
-                  window.opener.location.href = redirectUrl;
-                  console.log('Ventana principal redirigida a:', redirectUrl);
-                }
-              } catch (e) {
-                console.error('Error redirigiendo ventana principal:', e);
-              }
-              
-              // Cerrar esta ventana después de enviar los datos
-              console.log('Cerrando ventana actual en 2 segundos...');
-              setTimeout(() => {
-                window.close();
-              }, 2000);
-              
+              // 3. Cerrar esta ventana después de asegurar comunicación
+              setTimeout(() => window.close(), 3000);
               return true;
             }
           } catch (e) {
@@ -393,26 +378,19 @@
       
       // Inicialización
       function init() {
-        setupButtons();
-        
-        // NUEVO: Verificar primero si somos una pestaña abierta por Stripe
+        // PRIORIDAD: Verificar si somos ventana secundaria
         if (checkIfOpenedByStripe()) {
-          // Ya se manejó en la función, no es necesario hacer más
-          console.log('Manejado como pestaña secundaria de Stripe');
+          console.log('Comunicación con ventana principal iniciada');
           return;
         }
         
-        // Continuar con el flujo normal
+        // Comportamiento normal solo si no se detectó ventana principal
+        setupButtons();
         startCountdown();
-        
-        // Intentar redirección automática después de un breve retraso
         setTimeout(redirectToApp, 300);
-        
-        // Mostrar opciones manuales después de un tiempo máximo
-        setTimeout(showManualOptions, 8000);
       }
       
-      // Iniciar cuando la página esté cargada
+      // Llamar a init cuando la página esté cargada
       if (document.readyState === 'complete') {
         init();
       } else {
