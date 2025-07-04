@@ -216,47 +216,72 @@
       
       // NUEVO: Verificar si estamos en una pestaña abierta por otra
       function checkIfOpenedByStripe() {
-        // Si tenemos una ventana que nos abrió y es Stripe Checkout
+        // Si tenemos una ventana que nos abrió
         if (window.opener && !window.opener.closed) {
           try {
-            // Verificar si es una pestaña de Stripe Checkout
-            const isStripeOpener = window.opener.location.href.includes('checkout.stripe.com');
-            const isFromOurApp = window.opener.location.href.includes('mercadito');
+            // Extraer el session_id de la URL
+            const sessionId = getSessionId();
+            console.log('Session ID para comunicar:', sessionId);
             
-            // Si fue abierta por nuestra app o por Stripe
-            if (isStripeOpener || isFromOurApp) {
-              console.log('Detectada pestaña abierta por Stripe/App, notificando a ventana original');
+            if (sessionId) {
+              // Intentar múltiples formas de comunicación con la ventana principal
               
-              sessionId = getSessionId();
-              console.log('Session ID para comunicar:', sessionId);
-              
-              // Notificar a la ventana original sobre el éxito del pago
+              // 1. Método directo de postMessage
               try {
-                // Primero intentar usar la ventana original directamente
                 window.opener.postMessage({
                   type: 'PAYMENT_SUCCESS',
                   sessionId: sessionId,
                   timestamp: new Date().getTime()
                 }, '*');
-                
-                // Redirigir la ventana original
-                const timestamp = new Date().getTime();
-                if (isFromOurApp) {
-                  window.opener.location.href = `${window.opener.location.origin}${window.opener.location.pathname}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-                }
-                
-                // Cerrar esta pestaña después de un breve retraso
-                setTimeout(() => {
-                  window.close();
-                }, 1000);
-                
-                return true;
+                console.log('Mensaje enviado a ventana principal via postMessage');
               } catch (e) {
-                console.error('Error comunicando con ventana original:', e);
+                console.error('Error enviando mensaje via postMessage:', e);
               }
+              
+              // 2. Intentar actualizar localStorage de la ventana principal
+              try {
+                window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
+                window.opener.localStorage.setItem('mg_payment_success', 'true');
+                window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
+                console.log('Datos guardados en localStorage de ventana principal');
+              } catch (e) {
+                console.error('Error guardando en localStorage:', e);
+              }
+              
+              // 3. Intentar redirección de la ventana principal
+              try {
+                const timestamp = new Date().getTime();
+                const currentUrl = window.opener.location.href;
+                
+                // Solo redirigir si no estamos ya en la página de éxito
+                if (!currentUrl.includes('payment-success')) {
+                  // Construir URL con parámetros para aplicación Flutter
+                  let redirectUrl;
+                  if (currentUrl.includes('#/')) {
+                    // Ya tiene un fragmento, añadir payment-success
+                    redirectUrl = `${currentUrl.split('#')[0]}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+                  } else {
+                    // Sin fragmento, añadir uno nuevo
+                    redirectUrl = `${currentUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
+                  }
+                  
+                  window.opener.location.href = redirectUrl;
+                  console.log('Ventana principal redirigida a:', redirectUrl);
+                }
+              } catch (e) {
+                console.error('Error redirigiendo ventana principal:', e);
+              }
+              
+              // Cerrar esta ventana después de enviar los datos
+              console.log('Cerrando ventana actual en 2 segundos...');
+              setTimeout(() => {
+                window.close();
+              }, 2000);
+              
+              return true;
             }
           } catch (e) {
-            console.error('Error verificando opener:', e);
+            console.error('Error en checkIfOpenedByStripe:', e);
           }
         }
         return false;
