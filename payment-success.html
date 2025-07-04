@@ -222,49 +222,28 @@
             console.log('💳 Session ID encontrado:', sessionId);
             
             if (sessionId) {
-              // Múltiples métodos de comunicación por orden de preferencia
+              // Múltiples intentos para comunicar el éxito
+              console.log('🔄 Intentando comunicar éxito del pago');
               
-              // 1. Llamar directamente a la función global processStripePayment
-              try {
-                if (typeof window.opener.processStripePayment === 'function') {
-                  const result = window.opener.processStripePayment(sessionId);
-                  console.log('Llamada directa a processStripePayment:', result ? 'exitosa' : 'pendiente');
-                } else {
-                  console.warn('Función processStripePayment no disponible');
-                }
-              } catch (e) {
-                console.error('Error llamando a processStripePayment:', e);
+              // NUEVO: Intentar llamar a la función global directamente
+              if (typeof window.opener.procesarPagoExitoso === 'function') {
+                const result = window.opener.procesarPagoExitoso(sessionId);
+                console.log('Llamada directa a procesarPagoExitoso:', result ? 'exitosa' : 'pendiente');
               }
               
-              // 2. Usar postMessage como respaldo
-              try {
-                window.opener.postMessage({
-                  type: 'PAYMENT_SUCCESS',
-                  sessionId: sessionId,
-                  timestamp: new Date().getTime()
-                }, '*');
-                console.log('Mensaje postMessage enviado');
-              } catch (e) {
-                console.error('Error con postMessage:', e);
-              }
+              // Enviar mensaje a través de postMessage también
+              window.opener.postMessage({
+                type: 'PAYMENT_SUCCESS',
+                sessionId: sessionId,
+                timestamp: new Date().getTime()
+              }, '*');
               
-              // 3. Actualizar localStorage directamente como último recurso
-              try {
-                window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
-                window.opener.localStorage.setItem('mg_payment_success', 'true');
-                window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-                window.opener.localStorage.setItem('mg_payment_pending', 'true');
-                console.log('Datos guardados en localStorage');
-              } catch (e) {
-                console.error('Error guardando en localStorage:', e);
-              }
-              
-              // Cerrar ventana después de comunicar
+              // Cerrar esta ventana después de enviar la información
               setTimeout(() => window.close(), 2000);
               return true;
             }
           } catch (e) {
-            console.error('Error general:', e);
+            console.error('Error en checkIfOpenedByStripe:', e);
           }
         }
         return false;
