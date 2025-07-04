@@ -74,16 +74,20 @@
 </head>
 <body>
   <div class="container">
-    <div class="success-icon">✅</div>
-    <h1>¡Pago completado!</h1>
-    <div class="spinner" id="loadingSpinner"></div>
-    <p>Regresando automáticamente a la aplicación...</p>
-    <p id="countdownText">Redirigiendo en <span id="countdown">5</span> segundos</p>
-    
-    <div id="manual-return" class="hidden">
-      <p>Si no regresaste automáticamente, usa una de estas opciones:</p>
-      <button id="return-button" class="button">Volver a la aplicación</button>
-      <br>
+    <div class="success-content">
+      <div class="success-icon">✓</div>
+      <h1>¡Pago Exitoso!</h1>
+      <p>Tu pago ha sido procesado correctamente.</p>
+      <p id="countdownText">Regresando a la aplicación en <span id="countdown">5</span> segundos...</p>
+      <div id="loadingSpinner" class="spinner"></div>
+      
+      <p style="margin-top: 15px; color: #2b8a3e;">
+        Si la aplicación no se abre automáticamente, utiliza el botón a continuación.
+      </p>
+      
+      <div id="manual-return" class="hidden">
+        <button id="return-button" class="button">Regresar a la Aplicación</button>
+      </div>
       <button id="copy-button" class="button button-secondary hidden">Copiar código de verificación</button>
     </div>
   </div>
