@@ -232,11 +232,13 @@
               
               function attemptPostMessage() {
                 try {
-                  window.opener.postMessage({
+                  const messageObj = {
                     type: 'PAYMENT_SUCCESS',
                     sessionId: sessionId,
                     timestamp: new Date().getTime()
-                  }, '*');
+                  };
+                  console.log('Enviando mensaje a ventana principal:', messageObj);
+                  window.opener.postMessage(messageObj, '*');
                   console.log(`Mensaje enviado a ventana principal (intento ${retryCount+1})`);
                   
                   // Continuar intentando si aún no alcanzamos el máximo
