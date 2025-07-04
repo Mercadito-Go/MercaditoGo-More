@@ -214,7 +214,7 @@
         }
       }
       
-      // NUEVO: Verificar si estamos en una pestaña abierta por otra
+      // Reemplazar la función checkIfOpenedByStripe
       function checkIfOpenedByStripe() {
         if (window.opener && !window.opener.closed) {
           try {
@@ -222,24 +222,40 @@
             console.log('💳 Session ID encontrado:', sessionId);
             
             if (sessionId) {
-              // Múltiples intentos para comunicar el éxito
-              console.log('🔄 Intentando comunicar éxito del pago');
-              
-              // NUEVO: Intentar llamar a la función global directamente
-              if (typeof window.opener.procesarPagoExitoso === 'function') {
-                const result = window.opener.procesarPagoExitoso(sessionId);
-                console.log('Llamada directa a procesarPagoExitoso:', result ? 'exitosa' : 'pendiente');
+              // 1. Intentar comunicación directa con la ventana padre
+              try {
+                if (typeof window.opener.procesarPagoExitoso === 'function') {
+                  const result = window.opener.procesarPagoExitoso(sessionId);
+                  console.log('Resultado de procesarPagoExitoso:', result ? 'exitoso' : 'pendiente');
+                }
+              } catch (e) {
+                console.error('Error con llamada directa:', e);
               }
               
-              // Enviar mensaje a través de postMessage también
-              window.opener.postMessage({
-                type: 'PAYMENT_SUCCESS',
-                sessionId: sessionId,
-                timestamp: new Date().getTime()
-              }, '*');
+              // 2. Usar postMessage como mecanismo alternativo (más seguro entre dominios)
+              try {
+                window.opener.postMessage({
+                  type: 'PAYMENT_SUCCESS',
+                  sessionId: sessionId,
+                  timestamp: new Date().getTime()
+                }, '*');
+                console.log('Mensaje postMessage enviado');
+              } catch (e) {
+                console.error('Error con postMessage:', e);
+              }
               
-              // Cerrar esta ventana después de enviar la información
-              setTimeout(() => window.close(), 2000);
+              // 3. Guardar en localStorage como último recurso
+              try {
+                localStorage.setItem('mg_stripe_session_id', sessionId);
+                localStorage.setItem('mg_payment_success', 'true');
+                localStorage.setItem('mg_payment_timestamp', new Date().getTime());
+                console.log('Datos guardados en localStorage');
+              } catch (e) {
+                console.error('Error guardando en localStorage:', e);
+              }
+              
+              // No cerramos automáticamente, dejamos que el usuario use el botón
+              // para mejorar la experiencia (resolverá problemas de pop-up blocker)
               return true;
             }
           } catch (e) {
@@ -249,90 +265,48 @@
         return false;
       }
       
-      // Redirigir según plataforma
-      function redirectToApp() {
-        // NUEVO: Primero verificar si estamos en una pestaña abierta por Stripe
-        if (checkIfOpenedByStripe()) {
-          console.log('Manejado como pestaña de Stripe, no es necesario redireccionar');
-          return;
-        }
-        
-        if (redirectAttempted && redirectMethods >= 3) return;
-        redirectAttempted = true;
-        redirectMethods++;
-        
-        try {
-          sessionId = getSessionId();
-          console.log('Session ID:', sessionId);
-          
-          // Ocultar spinner después de primer intento
-          if (redirectMethods > 1) {
-            const spinner = document.getElementById('loadingSpinner');
-            if (spinner) spinner.style.display = 'none';
-          }
-          
-          // Prevenir cacheo
-          const timestamp = new Date().getTime();
-          const platform = detectPlatform();
-          
-          console.log('Plataforma detectada:', platform);
-          
-          // Determinar tipo de redirección
-          switch (platform) {
-            case 'web':
-              // Redirección web
-              console.log('Redirigiendo web con hash');
-              const baseUrl = window.location.href.split('#')[0];
-              window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-              break;
+      // Nuevo manejador para el botón "Regresar a la Aplicación"
+      function setupReturnButton() {
+        const returnButton = document.getElementById('return-button');
+        if (returnButton) {
+          returnButton.addEventListener('click', function() {
+            const sessionId = getSessionId();
+            console.log('Botón de regreso presionado, sessionId:', sessionId);
+            
+            // 1. Intentar comunicar a la ventana principal una última vez
+            if (window.opener && !window.opener.closed) {
+              try {
+                window.opener.postMessage({
+                  type: 'PAYMENT_SUCCESS',
+                  sessionId: sessionId,
+                  timestamp: new Date().getTime(),
+                  action: 'button_click'
+                }, '*');
+              } catch (e) {
+                console.error('Error enviando mensaje final:', e);
+              }
               
-            case 'ios':
-              // Universal Links para iOS
-              console.log('Redirigiendo iOS con Universal Link');
-              window.location.href = `https://mercadito-go.github.io/MercaditoGo/success?session_id=${sessionId}&timestamp=${timestamp}`;
-              
-              // Mostrar opciones manuales después de un tiempo
-              setTimeout(showManualOptions, 2500);
-              break;
-              
-            case 'android':
-              // Deep Links para Android
-              console.log('Redirigiendo Android con Deep Link');
-              window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-              
-              // Esquema alternativo como respaldo
-              setTimeout(function() {
-                if (redirectMethods < 3) {
-                  console.log('Intento alternativo Android');
-                  window.location.href = `com.example.mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-                  
-                  // Mostrar opciones manuales después
-                  setTimeout(showManualOptions, 1500);
-                }
-              }, 1500);
-              break;
-              
-            default:
-              // Plataforma desconocida - intentar ambos métodos
-              console.log('Plataforma desconocida, intentando múltiples métodos');
-              
-              // Intentar deep link primero
-              window.location.href = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-              
-              // Luego intentar web
-              setTimeout(function() {
-                if (redirectMethods < 3) {
-                  const baseUrl = window.location.href.split('#')[0];
-                  window.location.href = `${baseUrl}#/payment-success?session_id=${sessionId}&timestamp=${timestamp}`;
-                  
-                  // Mostrar opciones manuales
-                  setTimeout(showManualOptions, 1000);
-                }
-              }, 1500);
-          }
-        } catch (e) {
-          console.error('Error en redirección:', e);
-          showManualOptions();
+              // 2. Intentar cerrar esta ventana
+              try {
+                window.close();
+              } catch (e) {
+                console.error('Error cerrando ventana:', e);
+              }
+            }
+            
+            // 3. Si no pudimos cerrarla, redirigir a la aplicación
+            try {
+              // Redirigir a la aplicación web si estamos en GitHub Pages
+              if (window.location.hostname.includes('github.io')) {
+                window.location.href = 'https://mercaditogo.com';
+              } else {
+                // Para entorno local
+                window.location.href = '/';
+              }
+            } catch (e) {
+              console.error('Error en redirección:', e);
+            }
+          });
         }
       }
       
@@ -363,6 +337,7 @@
         
         // Comportamiento normal solo si no se detectó ventana principal
         setupButtons();
+        setupReturnButton();
         startCountdown();
         setTimeout(redirectToApp, 300);
       }
