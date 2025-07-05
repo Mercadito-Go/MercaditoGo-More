@@ -113,61 +113,172 @@
       let sessionId = '';
       let countdownSeconds = 5;
       let countdownTimer;
+      let communicationSuccessful = false;
 
-      // Función mejorada para cerrar la ventana o redirigir
+      // Extraer ID de sesión con mejor manejo de errores
+      function extractSessionId() {
+        try {
+          // Intentar extraer de la URL actual
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.has('session_id')) {
+            return urlParams.get('session_id');
+          }
+          
+          // Extraer de la ruta si está en formato /c/pay/cs_xxx
+          const pathMatch = window.location.pathname.match(/\/c\/pay\/(cs_[a-zA-Z0-9_]+)/);
+          if (pathMatch) {
+            return pathMatch[1];
+          }
+          
+          // Buscar formato cs_ en cualquier parte de la URL
+          const csMatch = window.location.href.match(/cs_[a-zA-Z0-9_]+/);
+          if (csMatch) {
+            return csMatch[0];
+          }
+          
+          return null;
+        } catch (e) {
+          console.error('Error extrayendo sessionId:', e);
+          return null;
+        }
+      }
+
+      // Comunicar a la ventana principal con múltiples mecanismos
+      function communicateToParent() {
+        try {
+          sessionId = extractSessionId();
+          if (!sessionId) {
+            console.error('No se pudo extraer sessionId');
+            return false;
+          }
+          
+          console.log('ID de sesión extraído:', sessionId);
+          
+          // Almacenar en localStorage en TODOS los casos (como respaldo)
+          localStorage.setItem('mg_payment_success', 'true');
+          localStorage.setItem('mg_stripe_session_id', sessionId);
+          localStorage.setItem('mg_payment_timestamp', new Date().getTime());
+          
+          // Intentar enviar mensaje a la ventana principal
+          if (window.opener && !window.opener.closed) {
+            console.log('Enviando sessionId a ventana principal:', sessionId);
+            
+            // Método 1: postMessage
+            window.opener.postMessage({
+              type: 'PAYMENT_SUCCESS',
+              sessionId: sessionId
+            }, '*');
+            
+            // Método 2: llamada directa si existe la función
+            if (typeof window.opener.procesarPagoExitoso === 'function') {
+              try {
+                window.opener.procesarPagoExitoso(sessionId);
+                communicationSuccessful = true;
+                console.log('✅ Comunicación exitosa mediante función directa');
+              } catch (e) {
+                console.error('Error llamando a procesarPagoExitoso:', e);
+              }
+            }
+            
+            // Método 3: almacenar en localStorage de la ventana principal
+            try {
+              window.opener.localStorage.setItem('mg_payment_success', 'true');
+              window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
+              window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
+              communicationSuccessful = true;
+              console.log('✅ Datos guardados en localStorage de ventana principal');
+            } catch (e) {
+              console.error('Error guardando en localStorage de opener:', e);
+            }
+            
+            return true;
+          } else {
+            console.log('No hay ventana principal disponible, usando localStorage');
+            return false;
+          }
+        } catch (e) {
+          console.error('Error al comunicar con ventana principal:', e);
+          return false;
+        }
+      }
+
+      // Función modificada para cerrar la ventana o redirigir
       function redirectToApp() {
         if (redirectAttempted) return;
         redirectAttempted = true;
         
-        console.log('Iniciando proceso de cierre/redirección automático...');
+        console.log('Iniciando proceso de cierre/redirección...');
         
-        // IMPORTANTE: Primero comunicar el ID de sesión a la ventana principal
-        const communicated = communicateToParent();
+        // CRÍTICO: Primero comunicar el ID de sesión a la ventana principal
+        communicateToParent();
         
-        // Prioridad 1: Si somos una ventana secundaria, intentar cerrar
-        if (window.opener && !window.opener.closed) {
-          try {
-            console.log('Detectada ventana principal - intentando cerrar la ventana actual');
-            setTimeout(function() {
-              window.close();
-            }, 300); // Breve retraso para asegurar comunicación previa
-            return; // IMPORTANTE: Detener aquí si tenemos opener
-          } catch (e) {
-            console.error('Error al cerrar ventana:', e);
-            // Continuar con alternativas si falló
-          }
-        }
-        
-        // Prioridad 2: Intentar deep link para volver a la app
-        try {
-          console.log('Intentando deep link para volver a la app');
-          window.location.href = 'mercaditogo://payment/success?session_id=' + 
-            sessionId + '&timestamp=' + new Date().getTime();
-        } catch (e) {
-          console.error('Error con deep link:', e);
-        }
-        
-        // Prioridad 3: Último recurso, no debería llegar aquí en uso normal
+        // Darle tiempo a la comunicación antes de cerrar
         setTimeout(function() {
-          console.log('Fallback - redirección web como último recurso');
-          if (window.location.hostname.includes('github.io')) {
-            window.location.replace('https://mercadito-go.github.io/MercaditoGo/');
-          } else {
-            window.location.replace('/');
+          // Prioridad 1: Si somos una ventana secundaria, intentar cerrar
+          if (window.opener && !window.opener.closed) {
+            try {
+              console.log('Detectada ventana principal - cerrando esta ventana');
+              window.close();
+              return;
+            } catch (e) {
+              console.error('Error al cerrar ventana:', e);
+            }
           }
-        }, 1500);
+          
+          // Prioridad 2: Intentar deep link para volver a la app
+          try {
+            console.log('Intentando deep link con sessionId:', sessionId);
+            window.location.href = 'mercaditogo://payment/success?session_id=' + 
+              sessionId + '&timestamp=' + new Date().getTime();
+          } catch (e) {
+            console.error('Error con deep link:', e);
+          }
+          
+          // Prioridad 3: Redirección web como respaldo
+          setTimeout(function() {
+            if (window.location.hostname.includes('github.io')) {
+              window.location.replace('https://mercaditogo.com?session_id=' + sessionId);
+            } else {
+              window.location.replace('/?session_id=' + sessionId);
+            }
+          }, 1000);
+        }, 500); // Esperar 500ms para que la comunicación se complete
+      }
+
+      // Configurar elementos UI
+      function setupUI() {
+        const copyButton = document.getElementById('copy-button');
+        const returnButton = document.getElementById('return-button');
+        
+        sessionId = extractSessionId() || '';
+        
+        if (sessionId) {
+          if (copyButton) {
+            copyButton.classList.remove('hidden');
+            copyButton.addEventListener('click', function() {
+              navigator.clipboard.writeText(sessionId)
+                .then(() => alert('ID de sesión copiado: ' + sessionId))
+                .catch(err => console.error('Error al copiar:', err));
+            });
+          }
+        }
+        
+        if (returnButton) {
+          returnButton.addEventListener('click', function() {
+            redirectAttempted = false; // Reset para permitir nuevo intento
+            redirectToApp();
+          });
+        }
       }
 
       // Actualizar función de inicio de contador
       function startCountdown() {
         console.log('Iniciando contador de cierre automático...');
         
-        // Limpiar cualquier temporizador existente
         if (countdownTimer) {
           clearInterval(countdownTimer);
         }
         
-        // Actualizar contador cada segundo
         countdownTimer = setInterval(function() {
           try {
             const countdownElement = document.getElementById('countdown');
@@ -175,7 +286,6 @@
             
             countdownSeconds--;
             countdownElement.textContent = countdownSeconds;
-            console.log('Contador actualizado: ' + countdownSeconds);
             
             if (countdownSeconds <= 0) {
               clearInterval(countdownTimer);
@@ -185,49 +295,58 @@
             console.error('Error en countdown:', e);
           }
         }, 1000);
-        
-        // Respaldo: intentar redirección después de 6 segundos
-        setTimeout(function() {
-          if (!redirectAttempted) {
-            console.log('Activando cierre de respaldo por tiempo límite');
-            redirectToApp();
-          }
-        }, 6000);
       }
 
-      // Mejorar función de inicialización
+      // Mejorada para detectar si fuimos abiertos por Stripe
+      function handleStripeOpener() {
+        try {
+          // Si venimos de Stripe, la URL tendrá un parámetro session_id o similar
+          sessionId = extractSessionId();
+          if (sessionId) {
+            console.log('Detectada URL de Stripe con session_id:', sessionId);
+            return true;
+          }
+          return false;
+        } catch (e) {
+          console.error('Error verificando origen:', e);
+          return false;
+        }
+      }
+
+      // Inicialización mejorada
       function init() {
         console.log('Inicializando página de pago exitoso');
         
-        // Configurar UI
         setupUI();
+        handleStripeOpener();
         
-        // Verificar si fuimos abiertos por Stripe
-        const isStripeReturn = handleStripeOpener();
-        
-        // Asegurarse de que el contador sea visible
+        // Mostrar y comenzar el contador
         const countdownText = document.getElementById('countdownText');
         const countdownElement = document.getElementById('countdown');
         if (countdownText) countdownText.style.display = 'block';
         if (countdownElement) countdownElement.style.display = 'inline';
         
-        // Iniciar contador siempre
         startCountdown();
+        
+        // Comunicar inmediatamente para no depender solo del timer
+        communicateToParent();
       }
       
-      // Iniciar cuando el DOM esté listo
+      // Iniciar cuando el DOM esté completamente cargado
       if (document.readyState === 'complete') {
         init();
       } else {
         document.addEventListener('DOMContentLoaded', init);
-        // Respaldo por si todo falla
-        setTimeout(function() {
-          if (!redirectAttempted && window.opener && !window.opener.closed) {
-            window.close();
-          }
-        }, 8000);
       }
+      
+      // Respaldo final si todo lo demás falla
+      setTimeout(function() {
+        if (!redirectAttempted && window.opener && !window.opener.closed) {
+          communicateToParent();
+          setTimeout(() => window.close(), 300);
+        }
+      }, 8000);
     })();
-  </script>
+</script>
 </body>
 </html>
