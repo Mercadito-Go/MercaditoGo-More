@@ -113,288 +113,89 @@
       let sessionId = '';
       let countdownSeconds = 5;
       let countdownTimer;
-      let sessionIdCopied = false;
-      
-      // Extraer el session_id de manera más robusta
-      function getSessionId() {
-        try {
-          // Revisar en los parámetros de la URL
-          const urlParams = new URLSearchParams(window.location.search);
-          let id = urlParams.get('session_id');
-          
-          if (id && id.trim() !== '') {
-            console.log('Session ID encontrado en parámetros URL:', id);
-            return id;
-          }
-          
-          // Buscar en el fragmento de la URL (después del #)
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          id = hashParams.get('session_id');
-          
-          if (id && id.trim() !== '') {
-            console.log('Session ID encontrado en fragmento URL:', id);
-            return id;
-          }
-          
-          // Buscar patrones cs_test_ o cs_live_ en la URL completa
-          const urlString = window.location.href;
-          const csMatch = urlString.match(/cs_(test|live)_[a-zA-Z0-9]+/);
-          
-          if (csMatch && csMatch[0]) {
-            console.log('Session ID encontrado con regex:', csMatch[0]);
-            return csMatch[0];
-          }
-          
-          // Intentar extraer de la ruta de la URL
-          const pathSegments = window.location.pathname.split('/');
-          for (let segment of pathSegments) {
-            if (segment.startsWith('cs_')) {
-              console.log('Session ID encontrado en path:', segment);
-              return segment;
-            }
-          }
-          
-          console.warn('No se pudo encontrar Session ID');
-          return '';
-        } catch (e) {
-          console.error('Error obteniendo session_id:', e);
-          return '';
-        }
-      }
-      
-      // Actualizar contador con manejo de errores mejorado
-      function updateCountdown() {
-        try {
-          const countdownElement = document.getElementById('countdown');
-          if (!countdownElement) {
-            console.error('Elemento countdown no encontrado');
-            return;
-          }
-          
-          countdownSeconds--;
-          countdownElement.textContent = countdownSeconds;
-          console.log('Contador actualizado:', countdownSeconds);
-          
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            redirectToApp();
-          }
-        } catch (e) {
-          console.error('Error en updateCountdown:', e);
-        }
-      }
-      
-      // Iniciar contador con verificación
-      function startCountdown() {
-        try {
-          console.log('Iniciando contador de redirección...');
-          // Limpiar cualquier temporizador existente
-          if (countdownTimer) {
-            clearInterval(countdownTimer);
-          }
-          countdownTimer = setInterval(updateCountdown, 1000);
-          
-          // Como respaldo, programar redirección después de 6 segundos
-          setTimeout(function() {
-            if (!redirectAttempted) {
-              console.log('Activando redirección de respaldo después de timeout');
-              redirectToApp();
-            }
-          }, 6000);
-        } catch (e) {
-          console.error('Error en startCountdown:', e);
-        }
-      }
-      
-      // Función para comunicar el session_id a la ventana principal
-      function communicateToParent() {
-        if (!sessionId) return false;
-        
-        console.log('Intentando comunicar session_id a la ventana principal:', sessionId);
-        let successful = false;
-        
-        // Método 1: Llamar a la función global si existe
-        if (window.opener && !window.opener.closed) {
-          try {
-            if (typeof window.opener.procesarPagoExitoso === 'function') {
-              const result = window.opener.procesarPagoExitoso(sessionId);
-              console.log('Llamada a procesarPagoExitoso:', result ? 'exitosa' : 'pendiente');
-              successful = true;
-            }
-          } catch (e) {
-            console.error('Error llamando a procesarPagoExitoso:', e);
-          }
-          
-          // Método 2: postMessage para comunicación más segura entre dominios
-          try {
-            window.opener.postMessage({
-              type: 'PAYMENT_SUCCESS',
-              sessionId: sessionId,
-              timestamp: new Date().getTime()
-            }, '*');
-            console.log('Mensaje postMessage enviado');
-            successful = true;
-          } catch (e) {
-            console.error('Error con postMessage:', e);
-          }
-          
-          // Método 3: Usar localStorage como último recurso
-          try {
-            window.opener.localStorage.setItem('mg_stripe_session_id', sessionId);
-            window.opener.localStorage.setItem('mg_payment_success', 'true');
-            window.opener.localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-            console.log('Datos guardados en localStorage de la ventana principal');
-            successful = true;
-          } catch (e) {
-            console.error('Error con localStorage:', e);
-          }
-        }
-        
-        // También guardar en localStorage local para posible recuperación
-        try {
-          localStorage.setItem('mg_stripe_session_id', sessionId);
-          localStorage.setItem('mg_payment_success', 'true');
-          localStorage.setItem('mg_payment_timestamp', new Date().getTime());
-          console.log('Datos guardados en localStorage local');
-        } catch (e) {
-          console.error('Error con localStorage local:', e);
-        }
-        
-        return successful;
-      }
-      
-      // Reemplazar la función de retorno actual con esta versión mejorada
+
+      // Función mejorada para cerrar la ventana o redirigir
       function redirectToApp() {
         if (redirectAttempted) return;
         redirectAttempted = true;
         
-        console.log('Redirigiendo a la aplicación principal...');
+        console.log('Iniciando proceso de cierre/redirección automático...');
         
-        // Comunicar a la ventana principal
-        communicateToParent();
+        // IMPORTANTE: Primero comunicar el ID de sesión a la ventana principal
+        const communicated = communicateToParent();
         
-        // 1. Intentar usar el esquema URI personalizado (deep link)
+        // Prioridad 1: Si somos una ventana secundaria, intentar cerrar
+        if (window.opener && !window.opener.closed) {
+          try {
+            console.log('Detectada ventana principal - intentando cerrar la ventana actual');
+            setTimeout(function() {
+              window.close();
+            }, 300); // Breve retraso para asegurar comunicación previa
+            return; // IMPORTANTE: Detener aquí si tenemos opener
+          } catch (e) {
+            console.error('Error al cerrar ventana:', e);
+            // Continuar con alternativas si falló
+          }
+        }
+        
+        // Prioridad 2: Intentar deep link para volver a la app
         try {
+          console.log('Intentando deep link para volver a la app');
           window.location.href = 'mercaditogo://payment/success?session_id=' + 
             sessionId + '&timestamp=' + new Date().getTime();
-            
-          // 2. Intentar abrir URL web normal como respaldo
-          setTimeout(function() {
-            // Si estamos en github.io, ir a la web de producción
-            if (window.location.hostname.includes('github.io')) {
-              window.location.replace('https://mercaditogo.com');
-            } else {
-              // Ir a la raíz del sitio local
-              window.location.replace('/');
-            }
-          }, 2000);
-          
-          // 3. Como último recurso, intentar cerrar esta ventana si fue abierta por la app
-          setTimeout(function() {
-            if (window.opener && !window.opener.closed) {
-              window.close();
-            }
-          }, 3000);
         } catch (e) {
-          console.error('Error en redirección:', e);
-          
-          // Intentar redirección directa si falla el esquema URI
-          window.location.href = window.location.hostname.includes('github.io')
-            ? 'https://mercaditogo.com'
-            : '/';
+          console.error('Error con deep link:', e);
         }
-      }
-      
-      // Configurar botones y eventos
-      function setupUI() {
-        // Obtener y guardar session_id
-        sessionId = getSessionId();
         
-        // Configurar botón de regreso manual
-        const returnButton = document.getElementById('return-button');
-        if (returnButton) {
-          returnButton.addEventListener('click', function() {
-            console.log('Botón de regreso presionado');
-            redirectAttempted = false; // Permitir un nuevo intento
+        // Prioridad 3: Último recurso, no debería llegar aquí en uso normal
+        setTimeout(function() {
+          console.log('Fallback - redirección web como último recurso');
+          if (window.location.hostname.includes('github.io')) {
+            window.location.replace('https://mercadito-go.github.io/MercaditoGo/');
+          } else {
+            window.location.replace('/');
+          }
+        }, 1500);
+      }
+
+      // Actualizar función de inicio de contador
+      function startCountdown() {
+        console.log('Iniciando contador de cierre automático...');
+        
+        // Limpiar cualquier temporizador existente
+        if (countdownTimer) {
+          clearInterval(countdownTimer);
+        }
+        
+        // Actualizar contador cada segundo
+        countdownTimer = setInterval(function() {
+          try {
+            const countdownElement = document.getElementById('countdown');
+            if (!countdownElement) return;
+            
+            countdownSeconds--;
+            countdownElement.textContent = countdownSeconds;
+            console.log('Contador actualizado: ' + countdownSeconds);
+            
+            if (countdownSeconds <= 0) {
+              clearInterval(countdownTimer);
+              redirectToApp();
+            }
+          } catch (e) {
+            console.error('Error en countdown:', e);
+          }
+        }, 1000);
+        
+        // Respaldo: intentar redirección después de 6 segundos
+        setTimeout(function() {
+          if (!redirectAttempted) {
+            console.log('Activando cierre de respaldo por tiempo límite');
             redirectToApp();
-          });
-        }
-        
-        // Configurar botón de copia si hay sessionId
-        if (sessionId) {
-          const copyButton = document.getElementById('copy-button');
-          if (copyButton) {
-            copyButton.classList.remove('hidden');
-            copyButton.addEventListener('click', function() {
-              navigator.clipboard.writeText(sessionId).then(function() {
-                copyButton.textContent = '✓ Código copiado';
-                setTimeout(() => {
-                  copyButton.textContent = 'Copiar código de verificación';
-                }, 2000);
-              }).catch(function(e) {
-                console.error('Error copiando al portapapeles:', e);
-                
-                // Fallback para navegadores que no soportan clipboard API
-                const textarea = document.createElement('textarea');
-                textarea.value = sessionId;
-                document.body.appendChild(textarea);
-                textarea.select();
-                
-                try {
-                  document.execCommand('copy');
-                  copyButton.textContent = '✓ Código copiado';
-                } catch (e) {
-                  copyButton.textContent = 'Error al copiar';
-                  console.error('Error con método alternativo de copia:', e);
-                }
-                
-                setTimeout(() => {
-                  copyButton.textContent = 'Copiar código de verificación';
-                }, 2000);
-                
-                document.body.removeChild(textarea);
-              });
-            });
           }
-        }
+        }, 6000);
       }
-      
-      // Función para verificar si fuimos abiertos por Stripe y comunicar el resultado
-      function handleStripeOpener() {
-        if (window.opener && !window.opener.closed) {
-          console.log('Detectada ventana que nos abrió');
-          
-          // Obtener session_id
-          const id = getSessionId();
-          if (!id) {
-            console.warn('No se encontró session_id para comunicar');
-            return false;
-          }
-          
-          sessionId = id;
-          
-          // Comunicar a la ventana principal
-          const communicated = communicateToParent();
-          
-          if (communicated) {
-            console.log('Comunicación exitosa con ventana principal');
-            
-            // No cerrar automáticamente, dejar que el usuario lo haga
-            // Mostrar interfaz con el botón de regreso
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            const countdownText = document.getElementById('countdownText');
-            
-            if (loadingSpinner) loadingSpinner.style.display = 'none';
-            if (countdownText) countdownText.style.display = 'none';
-            
-            return true;
-          }
-        }
-        
-        return false;
-      }
-      
-      // Inicialización principal
+
+      // Mejorar función de inicialización
       function init() {
         console.log('Inicializando página de pago exitoso');
         
@@ -404,30 +205,27 @@
         // Verificar si fuimos abiertos por Stripe
         const isStripeReturn = handleStripeOpener();
         
-        // Asegurarse de que el contador sea visible y funcional
+        // Asegurarse de que el contador sea visible
         const countdownText = document.getElementById('countdownText');
         const countdownElement = document.getElementById('countdown');
-        
         if (countdownText) countdownText.style.display = 'block';
         if (countdownElement) countdownElement.style.display = 'inline';
         
-        // Iniciar contador SIEMPRE, independiente de la fuente
+        // Iniciar contador siempre
         startCountdown();
-        
-        // Como respaldo, programar redirección después de 6 segundos
-        setTimeout(function() {
-          if (!redirectAttempted) {
-            console.log('Activando redirección automática de respaldo');
-            redirectToApp();
-          }
-        }, 6000);
       }
       
-      // Ejecutar cuando el DOM esté listo
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-      } else {
+      // Iniciar cuando el DOM esté listo
+      if (document.readyState === 'complete') {
         init();
+      } else {
+        document.addEventListener('DOMContentLoaded', init);
+        // Respaldo por si todo falla
+        setTimeout(function() {
+          if (!redirectAttempted && window.opener && !window.opener.closed) {
+            window.close();
+          }
+        }, 8000);
       }
     })();
   </script>
