@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MrCashondoV2 - Bot de Trading Automatizado</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0f172a;
+      color: #f1f5f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    img.logo {
+      max-width: 200px;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      color: #38bdf8;
+    }
+
+    p {
+      max-width: 600px;
+      font-size: 1.2rem;
+      margin: 1rem 0;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .features {
+      margin-top: 2rem;
+    }
+
+    .features ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .features li {
+      background-color: #1e293b;
+      margin: 0.5rem 0;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+
+    .telegram-link {
+      display: inline-block;
+      margin-top: 2rem;
+      background-color: #229ED9;
+      color: white;
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background-color 0.3s ease;
+    }
+
+    .telegram-link:hover {
+      background-color: #1c8ec0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="logo.png" alt="MrCashondoV2 Logo" class="logo" />
+    <h1>MrCashondoV2</h1>
+    <p>Bot de trading automatizado especializado en <strong>Scalping</strong> y <strong>Day Trading</strong>, con envío de señales en tiempo real a través de Telegram.</p>
+  </header>
+
+  <section class="features">
+    <h2>Características principales</h2>
+    <ul>
+      <li>✅ Estrategias optimizadas para alta frecuencia</li>
+      <li>📊 Análisis técnico automatizado</li>
+      <li>🚀 Operaciones en Forex, Índices y más</li>
+      <li>📨 Señales directas a tu Telegram</li>
+      <li>🔒 Control de riesgo integrado</li>
+    </ul>
+  </section>
+
+  <a class="telegram-link" href="https://t.me/TuCanalDeSeñales" target="_blank">Únete al canal de señales</a>
+</body>
+</html>
