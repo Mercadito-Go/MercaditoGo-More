@@ -80,7 +80,7 @@
 </head>
 <body>
   <header>
-    <img src="logo.png" alt="MrCashondoV2 Logo" class="logo" />
+    <img src="Mr.Cashond0.png" alt="MrCashondoV2 Logo" class="logo" />
     <h1>MrCashondoV2</h1>
     <p>Bot de trading automatizado especializado en <strong>Scalping</strong> y <strong>Day Trading</strong>, con envío de señales en tiempo real a través de Telegram.</p>
   </header>
