@@ -17,4 +17,4 @@ Estas páginas son utilizadas como parte del flujo de pago con Stripe en la apli
 1. Ve a Settings > Pages
 2. En "Source", selecciona "main" como rama
 3. Haz clic en "Save"
-4. La URL de tu sitio será: https://mercadito-go.github.io/MercaditoGo/
+4. La URL de tu sitio será: https://mercadito-go.github.io/MercaditoGo-More/
