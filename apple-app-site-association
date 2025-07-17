@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "<TEAM_ID>.<BUNDLE_IDENTIFIER>",
+        "paths": [ "/MercaditoGo-More/*", "/payment-success.html", "/payment-cancel.html" ]
+      }
+    ]
+  }
+}
