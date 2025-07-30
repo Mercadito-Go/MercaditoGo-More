@@ -119,22 +119,28 @@
       sessionId = extractSessionId() || '';
 
       let countdown = 5;
+      let redirected = false;
       const countdownEl = document.getElementById('countdown');
       const spinnerEl = document.getElementById('loadingSpinner');
       const manualReturnEl = document.getElementById('manual-return');
 
       function updateCountdown() {
+        if (redirected) return; // Evita múltiples redirecciones
         countdownEl.textContent = countdown;
-        if (countdown <= 0) {
+        if (countdown === 0) {
           clearInterval(timer);
           spinnerEl.classList.add('hidden');
           manualReturnEl.classList.remove('hidden');
-          openDeepLink(); // Ejecutar redirección solo cuando el contador termina
+          redirected = true;
+          openDeepLink();
+          return;
         }
         countdown--;
       }
 
       function openDeepLink() {
+        if (redirected) return; // Evita múltiples ejecuciones
+        redirected = true;
         const deepLink = 'mercaditogo://payment-success?session_id=' + sessionId + '&timestamp=' + new Date().getTime();
         // Intentar con iframe invisible
         const iframe = document.createElement('iframe');
