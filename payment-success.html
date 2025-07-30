@@ -129,6 +129,7 @@
           clearInterval(timer);
           spinnerEl.classList.add('hidden');
           manualReturnEl.classList.remove('hidden');
+          openDeepLink(); // Ejecutar redirección solo cuando el contador termina
         }
         countdown--;
       }
@@ -154,11 +155,10 @@
 
       document.getElementById('return-button').onclick = openDeepLink;
 
-      // Iniciar contador y redirección automática al cargar
+      // Iniciar contador al cargar, NO ejecutar openDeepLink hasta que termine el countdown
       let timer = null;
       window.addEventListener('load', function() {
         timer = setInterval(updateCountdown, 1000);
-        openDeepLink();
       });
     })();
   </script>
