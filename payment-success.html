@@ -119,49 +119,43 @@
       sessionId = extractSessionId() || '';
 
       let countdown = 5;
-      let redirected = false;
       const countdownEl = document.getElementById('countdown');
       const spinnerEl = document.getElementById('loadingSpinner');
       const manualReturnEl = document.getElementById('manual-return');
 
+      function redirectToApp() {
+        const deepLink = 'mercaditogo://payment-success?session_id=' + sessionId + '&timestamp=' + new Date().getTime();
+        const universalLink = 'https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId;
+
+        // Detectar plataforma
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+
+        if (isAndroid) {
+          window.location.href = deepLink;
+        } else if (isIOS) {
+          window.location.href = universalLink;
+        } else {
+          // Web fallback: solo mostrar el botón manual
+          manualReturnEl.classList.remove('hidden');
+          spinnerEl.classList.add('hidden');
+        }
+      }
+
       function updateCountdown() {
-        if (redirected) return; // Evita múltiples redirecciones
         countdownEl.textContent = countdown;
         if (countdown === 0) {
           clearInterval(timer);
           spinnerEl.classList.add('hidden');
           manualReturnEl.classList.remove('hidden');
-          redirected = true;
-          openDeepLink();
+          redirectToApp();
           return;
         }
         countdown--;
       }
 
-      function openDeepLink() {
-        if (redirected) return; // Evita múltiples ejecuciones
-        redirected = true;
-        const deepLink = 'mercaditogo://payment-success?session_id=' + sessionId + '&timestamp=' + new Date().getTime();
-        // Intentar con iframe invisible
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = deepLink;
-        document.body.appendChild(iframe);
+      document.getElementById('return-button').onclick = redirectToApp;
 
-        // Intentar con window.location.href
-        setTimeout(function() {
-          window.location.href = deepLink;
-        }, 300);
-
-        // Fallback para iOS Universal Link
-        setTimeout(function() {
-          window.location.href = 'https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId;
-        }, 1200);
-      }
-
-      document.getElementById('return-button').onclick = openDeepLink;
-
-      // Iniciar contador al cargar, NO ejecutar openDeepLink hasta que termine el countdown
       let timer = null;
       window.addEventListener('load', function() {
         timer = setInterval(updateCountdown, 1000);
