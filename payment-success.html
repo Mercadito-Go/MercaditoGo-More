@@ -94,12 +94,10 @@
       <p>Tu pago ha sido procesado correctamente.</p>
       <p id="countdownText">Regresando a la aplicación en <span id="countdown">5</span> segundos...</p>
       <div id="loadingSpinner" class="spinner"></div>
-      
       <p style="margin-top: 15px; color: #2b8a3e;">
         Si la aplicación no se abre automáticamente, utiliza el botón a continuación.
       </p>
-      
-      <div id="manual-return">
+      <div id="manual-return" class="hidden">
         <button id="return-button" class="button">Regresar a la Aplicación</button>
       </div>
       <button id="copy-button" class="button button-secondary hidden">Copiar código de verificación</button>
@@ -120,9 +118,24 @@
       }
       sessionId = extractSessionId() || '';
 
+      let countdown = 5;
+      const countdownEl = document.getElementById('countdown');
+      const spinnerEl = document.getElementById('loadingSpinner');
+      const manualReturnEl = document.getElementById('manual-return');
+
+      function updateCountdown() {
+        countdownEl.textContent = countdown;
+        if (countdown <= 0) {
+          clearInterval(timer);
+          spinnerEl.classList.add('hidden');
+          manualReturnEl.classList.remove('hidden');
+        }
+        countdown--;
+      }
+
       function openDeepLink() {
         const deepLink = 'mercaditogo://payment-success?session_id=' + sessionId + '&timestamp=' + new Date().getTime();
-        // Intentar con iframe invisible (mejor soporte en Android/iOS)
+        // Intentar con iframe invisible
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         iframe.src = deepLink;
@@ -137,20 +150,17 @@
         setTimeout(function() {
           window.location.href = 'https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId;
         }, 1200);
-
-        // Mostrar botón manual si no regresa
-        setTimeout(function() {
-          document.getElementById('manual-return').classList.remove('hidden');
-        }, 3000);
       }
 
       document.getElementById('return-button').onclick = openDeepLink;
 
-      // Intento automático al cargar
+      // Iniciar contador y redirección automática al cargar
+      let timer = null;
       window.addEventListener('load', function() {
+        timer = setInterval(updateCountdown, 1000);
         openDeepLink();
       });
     })();
-</script>
+  </script>
 </body>
 </html>
