@@ -118,20 +118,48 @@
       }
       sessionId = extractSessionId() || '';
 
+      // NEW: flag para evitar mensajes duplicados
+      const NOTIFIED_KEY = 'mg_payment_notified';
+      function alreadyNotified() {
+        try { return localStorage.getItem(NOTIFIED_KEY) === 'true'; } catch (e) { return false; }
+      }
+      function markNotified() {
+        try { localStorage.setItem(NOTIFIED_KEY, 'true'); } catch (e) {}
+      }
+
       // NUEVO: notificar a la app (Web - opener) y guardar en localStorage
       function notifyOpener() {
         try {
-          if (sessionId) {
-            try {
-              localStorage.setItem('mg_stripe_session_id', sessionId);
-              localStorage.setItem('mg_payment_success', 'true');
-            } catch (e) { /* ignore */ }
-            if (window.opener && !window.opener.closed) {
-              window.opener.postMessage({ type: 'PAYMENT_SUCCESS', sessionId: sessionId }, '*');
-            }
+          if (!sessionId || alreadyNotified()) return;
+
+          try {
+            localStorage.setItem('mg_stripe_session_id', sessionId);
+            localStorage.setItem('mg_payment_success', 'true');
+          } catch (e) { /* ignore */ }
+
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'PAYMENT_SUCCESS', sessionId: sessionId }, '*');
           }
+          markNotified();
         } catch (e) {
           console.error('Error notificando al opener:', e);
+        }
+      }
+
+      // Cierre seguro del popup/ventana
+      function tryCloseWindow() {
+        try {
+          // Algunos navegadores requieren reemplazar el contenido antes de cerrar
+          setTimeout(function() {
+            window.stop && window.stop();
+            window.location.replace('about:blank');
+            setTimeout(function() {
+              window.close();
+            }, 150);
+          }, 150);
+        } catch (e) {
+          // Si no se puede cerrar, mostrar opciones manuales
+          showManualOptions();
         }
       }
 
@@ -152,7 +180,10 @@
             `#Intent;scheme=mercaditogo;package=com.example.mercaditogo;` +
             `S.browser_fallback_url=${encodeURIComponent('https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId)};end`;
           window.location.href = intentUrl;
-        }, 800);
+        }, 600);
+
+        // 3) Intentar cerrar la ventana si fue abierta por script
+        setTimeout(tryCloseWindow, 1200);
       }
 
       function openAppIOS() {
@@ -170,14 +201,19 @@
         // 2) Intento directo tras breve delay
         setTimeout(function() {
           window.location.href = deepLink;
-        }, 600);
+        }, 400);
 
-        // 3) Mostrar opciones manuales si no abrió
-        setTimeout(showManualOptions, 3000);
+        // 3) Intentar cierre si fue abierto por script
+        setTimeout(tryCloseWindow, 1500);
+
+        // 4) Fallback manual
+        setTimeout(showManualOptions, 2500);
       }
 
       function redirectToApp() {
-        notifyOpener(); // Siempre notificar al opener (web)
+        // Siempre notificar primero al opener (para Web)
+        notifyOpener();
+
         if (!sessionId) {
           showManualOptions();
           return;
@@ -188,8 +224,10 @@
         } else if (isIOS()) {
           openAppIOS();
         } else {
-          // Web puro: mantener UX de botón manual
-          showManualOptions();
+          // Web puro: notificar y cerrar si fue popup
+          setTimeout(tryCloseWindow, 600);
+          // Si no se cerró, mostrar opciones manuales
+          setTimeout(showManualOptions, 1800);
         }
       }
 
@@ -204,14 +242,17 @@
       let countdown = 5;
       const countdownEl = document.getElementById('countdown');
       const spinnerEl = document.getElementById('loadingSpinner');
-      document.getElementById('return-button').onclick = redirectToApp;
+      document.getElementById('return-button').onclick = function() {
+        notifyOpener();
+        redirectToApp();
+      };
 
       function updateCountdown() {
         countdownEl.textContent = countdown;
         if (countdown === 0) {
           clearInterval(timer);
           spinnerEl.classList.add('hidden');
-          // Intento de apertura de app al terminar contador
+          // Intento de apertura + cierre al terminar contador
           redirectToApp();
           return;
         }
@@ -221,11 +262,16 @@
       // Inicialización
       let timer = null;
       window.addEventListener('load', function() {
-        notifyOpener(); // Notificar lo antes posible
+        // Notificar lo antes posible y evitar duplicados
+        notifyOpener();
         timer = setInterval(updateCountdown, 1000);
-
         // Intento temprano de deeplink para mejorar tasas de apertura
         setTimeout(redirectToApp, 400);
+      });
+
+      // Cerrar si el usuario abandona la página
+      window.addEventListener('pagehide', function() {
+        tryCloseWindow();
       });
     })();
   </script>
