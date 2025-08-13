@@ -150,72 +150,43 @@
         if (redirectAttempted && redirectMethods >= 3) return;
         redirectAttempted = true;
         redirectMethods++;
-        
         try {
-          // Ocultar spinner después de primer intento
-          if (redirectMethods > 1) {
-            const spinner = document.getElementById('loadingSpinner');
-            if (spinner) spinner.style.display = 'none';
-          }
-          
-          // Prevenir cacheo
           const timestamp = new Date().getTime();
           const platform = detectPlatform();
-          
-          console.log('Plataforma detectada:', platform);
-          
-          // Determinar tipo de redirección
+
           switch (platform) {
-            case 'web':
-              // Redirección web
-              console.log('Redirigiendo web con hash');
+            case 'web': {
               const baseUrl = window.location.href.split('#')[0];
               window.location.href = `${baseUrl}#/payment-cancel?timestamp=${timestamp}`;
               break;
-              
-            case 'ios':
-              // Universal Links para iOS
-              console.log('Redirigiendo iOS con Universal Link');
-              window.location.href = `https://mercadito-go.github.io/MercaditoGo/cancel?timestamp=${timestamp}`;
-              
-              // Mostrar opciones manuales después de un tiempo
+            }
+            case 'ios': {
+              // Universal Link corregido
+              window.location.href = `https://mercadito-go.github.io/MercaditoGo-More/payment-cancel.html?timestamp=${timestamp}`;
               setTimeout(showManualOptions, 2500);
               break;
-              
-            case 'android':
-              // Deep Links para Android
-              console.log('Redirigiendo Android con Deep Link');
+            }
+            case 'android': {
+              // Deep Link consistente
               window.location.href = `mercaditogo://payment-cancel?timestamp=${timestamp}`;
-              
-              // Esquema alternativo como respaldo
               setTimeout(function() {
                 if (redirectMethods < 3) {
-                  console.log('Intento alternativo Android');
-                  window.location.href = `com.example.mercaditogo://payment-cancel?timestamp=${timestamp}`;
-                  
-                  // Mostrar opciones manuales después
+                  // Reintento alternativo usando el mismo esquema
+                  window.location.href = `mercaditogo://payment-cancel?timestamp=${timestamp + 1}`;
                   setTimeout(showManualOptions, 1500);
                 }
               }, 1500);
               break;
-              
-            default:
-              // Plataforma desconocida - intentar ambos métodos
-              console.log('Plataforma desconocida, intentando múltiples métodos');
-              
-              // Intentar deep link primero
+            }
+            default: {
+              // Intentar ambos métodos en plataformas desconocidas
               window.location.href = `mercaditogo://payment-cancel?timestamp=${timestamp}`;
-              
-              // Luego intentar web
               setTimeout(function() {
-                if (redirectMethods < 3) {
-                  const baseUrl = window.location.href.split('#')[0];
-                  window.location.href = `${baseUrl}#/payment-cancel?timestamp=${timestamp}`;
-                  
-                  // Mostrar opciones manuales
-                  setTimeout(showManualOptions, 1000);
-                }
+                const baseUrl = window.location.href.split('#')[0];
+                window.location.href = `${baseUrl}#/payment-cancel?timestamp=${timestamp}`;
+                setTimeout(showManualOptions, 1000);
               }, 1500);
+            }
           }
         } catch (e) {
           console.error('Error en redirección:', e);
