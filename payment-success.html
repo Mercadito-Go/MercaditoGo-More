@@ -118,47 +118,114 @@
       }
       sessionId = extractSessionId() || '';
 
+      // NUEVO: notificar a la app (Web - opener) y guardar en localStorage
+      function notifyOpener() {
+        try {
+          if (sessionId) {
+            try {
+              localStorage.setItem('mg_stripe_session_id', sessionId);
+              localStorage.setItem('mg_payment_success', 'true');
+            } catch (e) { /* ignore */ }
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({ type: 'PAYMENT_SUCCESS', sessionId: sessionId }, '*');
+            }
+          }
+        } catch (e) {
+          console.error('Error notificando al opener:', e);
+        }
+      }
+
+      // NUEVO: estrategias de deeplink multiplataforma
+      function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent); }
+      function isAndroid() { return /Android/.test(navigator.userAgent); }
+
+      function openAppAndroid() {
+        const ts = Date.now();
+        const deepLink = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${ts}`;
+        // 1) Intento directo con esquema
+        window.location.href = deepLink;
+
+        // 2) Fallback con intent:// (mejor en Chrome)
+        setTimeout(function() {
+          const intentUrl =
+            `intent://payment-success?session_id=${sessionId}&timestamp=${ts}` +
+            `#Intent;scheme=mercaditogo;package=com.example.mercaditogo;` +
+            `S.browser_fallback_url=${encodeURIComponent('https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId)};end`;
+          window.location.href = intentUrl;
+        }, 800);
+      }
+
+      function openAppIOS() {
+        const ts = Date.now();
+        const deepLink = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${ts}`;
+
+        // 1) Intentar con iframe oculto (menos intrusivo)
+        try {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = deepLink;
+          document.body.appendChild(iframe);
+        } catch (e) { /* ignore */ }
+
+        // 2) Intento directo tras breve delay
+        setTimeout(function() {
+          window.location.href = deepLink;
+        }, 600);
+
+        // 3) Mostrar opciones manuales si no abrió
+        setTimeout(showManualOptions, 3000);
+      }
+
+      function redirectToApp() {
+        notifyOpener(); // Siempre notificar al opener (web)
+        if (!sessionId) {
+          showManualOptions();
+          return;
+        }
+
+        if (isAndroid()) {
+          openAppAndroid();
+        } else if (isIOS()) {
+          openAppIOS();
+        } else {
+          // Web puro: mantener UX de botón manual
+          showManualOptions();
+        }
+      }
+
+      function showManualOptions() {
+        const manualReturnEl = document.getElementById('manual-return');
+        const spinnerEl = document.getElementById('loadingSpinner');
+        if (manualReturnEl) manualReturnEl.classList.remove('hidden');
+        if (spinnerEl) spinnerEl.classList.add('hidden');
+      }
+
+      // Contador y botón
       let countdown = 5;
       const countdownEl = document.getElementById('countdown');
       const spinnerEl = document.getElementById('loadingSpinner');
-      const manualReturnEl = document.getElementById('manual-return');
-
-      function redirectToApp() {
-        const deepLink = 'mercaditogo://payment-success?session_id=' + sessionId + '&timestamp=' + new Date().getTime();
-        const universalLink = 'https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId;
-
-        // Detectar plataforma
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-
-        if (isAndroid) {
-          window.location.href = deepLink;
-        } else if (isIOS) {
-          window.location.href = universalLink;
-        } else {
-          // Web fallback: solo mostrar el botón manual
-          manualReturnEl.classList.remove('hidden');
-          spinnerEl.classList.add('hidden');
-        }
-      }
+      document.getElementById('return-button').onclick = redirectToApp;
 
       function updateCountdown() {
         countdownEl.textContent = countdown;
         if (countdown === 0) {
           clearInterval(timer);
           spinnerEl.classList.add('hidden');
-          manualReturnEl.classList.remove('hidden');
+          // Intento de apertura de app al terminar contador
           redirectToApp();
           return;
         }
         countdown--;
       }
 
-      document.getElementById('return-button').onclick = redirectToApp;
-
+      // Inicialización
       let timer = null;
       window.addEventListener('load', function() {
+        notifyOpener(); // Notificar lo antes posible
         timer = setInterval(updateCountdown, 1000);
+
+        // Intento temprano de deeplink para mejorar tasas de apertura
+        setTimeout(redirectToApp, 400);
       });
     })();
   </script>
