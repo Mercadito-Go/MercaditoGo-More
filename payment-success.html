@@ -211,6 +211,37 @@
         }
       });
     })();
+
+    // Agregar al script existente en payment-success.html
+    // Esta función debe ejecutarse cuando la página detecta un sessionId válido
+    function notifyWebApp(sessionId) {
+      try {
+        // Intentar usar localStorage primero (más confiable)
+        if (window.localStorage) {
+          localStorage.setItem('mg_stripe_session_id', sessionId);
+          localStorage.setItem('mg_payment_success', 'true');
+          localStorage.setItem('mg_payment_timestamp', Date.now().toString());
+        }
+        
+        // Intentar notificar a la ventana padre
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'PAYMENT_SUCCESS',
+            sessionId: sessionId,
+            timestamp: Date.now()
+          }, '*');
+        }
+        
+        // Si no hay opener, podría ser que la ventana se abrió desde una redirección
+        // Intentar redireccionar de vuelta
+        if (!window.opener) {
+          // Usar una URL con un parámetro específico que la app web pueda detectar
+          window.location.href = '/payment-completed?session_id=' + sessionId;
+        }
+      } catch (e) {
+        console.error('Error notificando a la app:', e);
+      }
+    }
   </script>
 </body>
 </html>
