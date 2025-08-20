@@ -107,141 +107,87 @@
   <script>
     (function() {
       let sessionId = '';
-    
-      // Función mejorada para extraer sessionId de URL
+
+      function isAndroid() { return /android/i.test(navigator.userAgent); }
+      function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream; }
+
       function extractSessionId() {
         try {
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.has('session_id')) return urlParams.get('session_id');
-          const csMatch = window.location.href.match(/cs_[a-zA-Z0-9_]+/);
-          if (csMatch) return csMatch[0];
-          return null;
-        } catch (e) { return null; }
+          const match = window.location.href.match(/cs_[A-Za-z0-9_]+/);
+          return match ? match[0] : null;
+        } catch (_) { return null; }
       }
-    
-      // Al cargar la página
+
+      function tryCloseWindow() {
+        try { window.close(); } catch(_) {}
+        try { if (window.opener && !window.opener.closed) window.opener.postMessage({ type:'CLOSE_ME' }, '*'); } catch(_) {}
+        try { window.location.replace('about:blank'); } catch(_) {}
+        try { history.length > 1 && history.back(); } catch(_) {}
+      }
+
+      function notifyWebApp(sessionId) {
+        try {
+          if (window.localStorage) {
+            localStorage.setItem('mg_stripe_session_id', sessionId);
+            localStorage.setItem('mg_payment_success', 'true');
+            localStorage.setItem('mg_payment_timestamp', Date.now().toString());
+          }
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type:'PAYMENT_SUCCESS', sessionId, timestamp: Date.now() }, '*');
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      function showManualOptions() {
+        const manual = document.getElementById('manual-return');
+        const copy = document.getElementById('copy-button');
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) spinner.classList.add('hidden');
+        if (manual) manual.classList.remove('hidden');
+        if (copy) copy.classList.remove('hidden');
+      }
+
       window.addEventListener('DOMContentLoaded', function() {
         sessionId = extractSessionId() || '';
         if (!sessionId) {
-          document.getElementById('error-message').textContent = 'No se pudo detectar el ID de sesión.';
-          document.getElementById('error-message').classList.remove('hidden');
-          document.getElementById('loadingSpinner').classList.add('hidden');
+          showManualOptions();
           return;
         }
-      
-        // Guardar en localStorage (para web)
-        try {
-          localStorage.setItem('mg_stripe_session_id', sessionId);
-          localStorage.setItem('mg_payment_success', 'true');
-        } catch (e) {}
-      
-        // Notificar ventana opener para web
-        try {
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({
-              type: 'PAYMENT_SUCCESS',
-              sessionId: sessionId
-            }, '*');
-          }
-        } catch (e) {}
-      
-        // Redireccionar a la app (Android/iOS)
+
+        // Notificar a la app web
+        notifyWebApp(sessionId);
+
+        // Intentar abrir deep link y cerrar pestaña
         setTimeout(function() {
-          // Para Android - usar intent con extras
-          if (isAndroid()) {
-            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
-          } 
-          // Para iOS - usar url scheme con parámetros
-          else if (isIOS()) {
-            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
-          }
-          // Si nada funciona, mostrar opción manual
-          setTimeout(showManualOptions, 1500);
-        }, 500);
-      });
-    
-      // Añadir estas funciones dentro del script existente
-      function isAndroid() {
-        return /android/i.test(navigator.userAgent);
-      }
-      
-      function isIOS() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      }
-      
-      function showManualOptions() {
-        document.getElementById('loadingSpinner').classList.add('hidden');
-        document.getElementById('manual-return').classList.remove('hidden');
-        document.getElementById('copy-button').classList.remove('hidden');
-        document.getElementById('countdownText').classList.add('hidden');
-      }
-      
-      // Agregar event listener para el botón de retorno
-      document.getElementById('return-button').addEventListener('click', function() {
-        const sessionId = extractSessionId() || '';
-        // Intentar ambos formatos de URL para mayor compatibilidad
-        window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
-        setTimeout(function() {
-          window.location.href = `mercaditogo://payment/success?session_id=${sessionId}`;
-        }, 500);
-      });
-      
-      // Agregar event listener para el botón de copiar
-      document.getElementById('copy-button').addEventListener('click', function() {
-        const sessionId = extractSessionId() || '';
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(sessionId)
-            .then(() => alert('Código copiado al portapapeles'))
-            .catch(() => alert('No se pudo copiar el código'));
-        } else {
-          // Fallback para navegadores que no soportan clipboard API
-          const textarea = document.createElement('textarea');
-          textarea.value = sessionId;
-          textarea.style.position = 'fixed';
-          document.body.appendChild(textarea);
-          textarea.focus();
-          textarea.select();
           try {
-            document.execCommand('copy');
+            const deeplink = `mercaditogo://payment-success?session_id=${sessionId}`;
+            window.location.href = deeplink;
+          } catch(_) {}
+          
+          // Intentos de cierre progresivos
+          setTimeout(tryCloseWindow, 400);
+          setTimeout(tryCloseWindow, 1000);
+          setTimeout(showManualOptions, 1500);
+        }, 250);
+
+        // Botón manual
+        document.getElementById('return-button')?.addEventListener('click', function() {
+          const deeplink = `mercaditogo://payment-success?session_id=${sessionId}`;
+          window.location.href = deeplink;
+          setTimeout(tryCloseWindow, 300);
+        });
+
+        document.getElementById('copy-button')?.addEventListener('click', function() {
+          navigator.clipboard?.writeText(sessionId).then(()=>{
             alert('Código copiado al portapapeles');
-          } catch (err) {
-            alert('No se pudo copiar el código: ' + err);
-          }
-          document.body.removeChild(textarea);
-        }
+          }).catch(()=>{
+            alert('No se pudo copiar el código');
+          });
+        });
       });
     })();
-
-    // Agregar al script existente en payment-success.html
-    // Esta función debe ejecutarse cuando la página detecta un sessionId válido
-    function notifyWebApp(sessionId) {
-      try {
-        // Intentar usar localStorage primero (más confiable)
-        if (window.localStorage) {
-          localStorage.setItem('mg_stripe_session_id', sessionId);
-          localStorage.setItem('mg_payment_success', 'true');
-          localStorage.setItem('mg_payment_timestamp', Date.now().toString());
-        }
-        
-        // Intentar notificar a la ventana padre
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage({
-            type: 'PAYMENT_SUCCESS',
-            sessionId: sessionId,
-            timestamp: Date.now()
-          }, '*');
-        }
-        
-        // Si no hay opener, podría ser que la ventana se abrió desde una redirección
-        // Intentar redireccionar de vuelta
-        if (!window.opener) {
-          // Usar una URL con un parámetro específico que la app web pueda detectar
-          window.location.href = '/payment-completed?session_id=' + sessionId;
-        }
-      } catch (e) {
-        console.error('Error notificando a la app:', e);
-      }
-    }
   </script>
 </body>
 </html>
