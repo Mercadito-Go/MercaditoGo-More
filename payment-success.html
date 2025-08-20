@@ -107,6 +107,8 @@
   <script>
     (function() {
       let sessionId = '';
+    
+      // Función mejorada para extraer sessionId de URL
       function extractSessionId() {
         try {
           const urlParams = new URLSearchParams(window.location.search);
@@ -116,162 +118,97 @@
           return null;
         } catch (e) { return null; }
       }
-      sessionId = extractSessionId() || '';
-
-      // NEW: flag para evitar mensajes duplicados
-      const NOTIFIED_KEY = 'mg_payment_notified';
-      function alreadyNotified() {
-        try { return localStorage.getItem(NOTIFIED_KEY) === 'true'; } catch (e) { return false; }
-      }
-      function markNotified() {
-        try { localStorage.setItem(NOTIFIED_KEY, 'true'); } catch (e) {}
-      }
-
-      // NUEVO: notificar a la app (Web - opener) y guardar en localStorage
-      function notifyOpener() {
-        try {
-          if (!sessionId || alreadyNotified()) return;
-
-          try {
-            localStorage.setItem('mg_stripe_session_id', sessionId);
-            localStorage.setItem('mg_payment_success', 'true');
-          } catch (e) { /* ignore */ }
-
-          if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({ type: 'PAYMENT_SUCCESS', sessionId: sessionId }, '*');
-          }
-          markNotified();
-        } catch (e) {
-          console.error('Error notificando al opener:', e);
-        }
-      }
-
-      // Cierre seguro del popup/ventana
-      function tryCloseWindow() {
-        try {
-          // Algunos navegadores requieren reemplazar el contenido antes de cerrar
-          setTimeout(function() {
-            window.stop && window.stop();
-            window.location.replace('about:blank');
-            setTimeout(function() {
-              window.close();
-            }, 150);
-          }, 150);
-        } catch (e) {
-          // Si no se puede cerrar, mostrar opciones manuales
-          showManualOptions();
-        }
-      }
-
-      // NUEVO: estrategias de deeplink multiplataforma
-      function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent); }
-      function isAndroid() { return /Android/.test(navigator.userAgent); }
-
-      function openAppAndroid() {
-        const ts = Date.now();
-        const deepLink = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${ts}`;
-        // 1) Intento directo con esquema
-        window.location.href = deepLink;
-
-        // 2) Fallback con intent:// (mejor en Chrome)
-        setTimeout(function() {
-          const intentUrl =
-            `intent://payment-success?session_id=${sessionId}&timestamp=${ts}` +
-            `#Intent;scheme=mercaditogo;package=com.example.mercaditogo;` +
-            `S.browser_fallback_url=${encodeURIComponent('https://mercadito-go.github.io/MercaditoGo-More/payment-success.html?session_id=' + sessionId)};end`;
-          window.location.href = intentUrl;
-        }, 600);
-
-        // 3) Intentar cerrar la ventana si fue abierta por script
-        setTimeout(tryCloseWindow, 1200);
-      }
-
-      function openAppIOS() {
-        const ts = Date.now();
-        const deepLink = `mercaditogo://payment-success?session_id=${sessionId}&timestamp=${ts}`;
-
-        // 1) Intentar con iframe oculto (menos intrusivo)
-        try {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = deepLink;
-          document.body.appendChild(iframe);
-        } catch (e) { /* ignore */ }
-
-        // 2) Intento directo tras breve delay
-        setTimeout(function() {
-          window.location.href = deepLink;
-        }, 400);
-
-        // 3) Intentar cierre si fue abierto por script
-        setTimeout(tryCloseWindow, 1500);
-
-        // 4) Fallback manual
-        setTimeout(showManualOptions, 2500);
-      }
-
-      function redirectToApp() {
-        // Siempre notificar primero al opener (para Web)
-        notifyOpener();
-
+    
+      // Al cargar la página
+      window.addEventListener('DOMContentLoaded', function() {
+        sessionId = extractSessionId() || '';
         if (!sessionId) {
-          showManualOptions();
+          document.getElementById('error-message').textContent = 'No se pudo detectar el ID de sesión.';
+          document.getElementById('error-message').classList.remove('hidden');
+          document.getElementById('loadingSpinner').classList.add('hidden');
           return;
         }
-
-        if (isAndroid()) {
-          openAppAndroid();
-        } else if (isIOS()) {
-          openAppIOS();
-        } else {
-          // Web puro: notificar y cerrar si fue popup
-          setTimeout(tryCloseWindow, 600);
-          // Si no se cerró, mostrar opciones manuales
-          setTimeout(showManualOptions, 1800);
-        }
-      }
-
-      function showManualOptions() {
-        const manualReturnEl = document.getElementById('manual-return');
-        const spinnerEl = document.getElementById('loadingSpinner');
-        if (manualReturnEl) manualReturnEl.classList.remove('hidden');
-        if (spinnerEl) spinnerEl.classList.add('hidden');
-      }
-
-      // Contador y botón
-      let countdown = 5;
-      const countdownEl = document.getElementById('countdown');
-      const spinnerEl = document.getElementById('loadingSpinner');
-      document.getElementById('return-button').onclick = function() {
-        notifyOpener();
-        redirectToApp();
-      };
-
-      function updateCountdown() {
-        countdownEl.textContent = countdown;
-        if (countdown === 0) {
-          clearInterval(timer);
-          spinnerEl.classList.add('hidden');
-          // Intento de apertura + cierre al terminar contador
-          redirectToApp();
-          return;
-        }
-        countdown--;
-      }
-
-      // Inicialización
-      let timer = null;
-      window.addEventListener('load', function() {
-        // Notificar lo antes posible y evitar duplicados
-        notifyOpener();
-        timer = setInterval(updateCountdown, 1000);
-        // Intento temprano de deeplink para mejorar tasas de apertura
-        setTimeout(redirectToApp, 400);
+      
+        // Guardar en localStorage (para web)
+        try {
+          localStorage.setItem('mg_stripe_session_id', sessionId);
+          localStorage.setItem('mg_payment_success', 'true');
+        } catch (e) {}
+      
+        // Notificar ventana opener para web
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({
+              type: 'PAYMENT_SUCCESS',
+              sessionId: sessionId
+            }, '*');
+          }
+        } catch (e) {}
+      
+        // Redireccionar a la app (Android/iOS)
+        setTimeout(function() {
+          // Para Android - usar intent con extras
+          if (isAndroid()) {
+            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
+          } 
+          // Para iOS - usar url scheme con parámetros
+          else if (isIOS()) {
+            window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
+          }
+          // Si nada funciona, mostrar opción manual
+          setTimeout(showManualOptions, 1500);
+        }, 500);
       });
-
-      // Cerrar si el usuario abandona la página
-      window.addEventListener('pagehide', function() {
-        tryCloseWindow();
+    
+      // Añadir estas funciones dentro del script existente
+      function isAndroid() {
+        return /android/i.test(navigator.userAgent);
+      }
+      
+      function isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      }
+      
+      function showManualOptions() {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('manual-return').classList.remove('hidden');
+        document.getElementById('copy-button').classList.remove('hidden');
+        document.getElementById('countdownText').classList.add('hidden');
+      }
+      
+      // Agregar event listener para el botón de retorno
+      document.getElementById('return-button').addEventListener('click', function() {
+        const sessionId = extractSessionId() || '';
+        // Intentar ambos formatos de URL para mayor compatibilidad
+        window.location.href = `mercaditogo://payment-success?session_id=${sessionId}`;
+        setTimeout(function() {
+          window.location.href = `mercaditogo://payment/success?session_id=${sessionId}`;
+        }, 500);
+      });
+      
+      // Agregar event listener para el botón de copiar
+      document.getElementById('copy-button').addEventListener('click', function() {
+        const sessionId = extractSessionId() || '';
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(sessionId)
+            .then(() => alert('Código copiado al portapapeles'))
+            .catch(() => alert('No se pudo copiar el código'));
+        } else {
+          // Fallback para navegadores que no soportan clipboard API
+          const textarea = document.createElement('textarea');
+          textarea.value = sessionId;
+          textarea.style.position = 'fixed';
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          try {
+            document.execCommand('copy');
+            alert('Código copiado al portapapeles');
+          } catch (err) {
+            alert('No se pudo copiar el código: ' + err);
+          }
+          document.body.removeChild(textarea);
+        }
       });
     })();
   </script>
