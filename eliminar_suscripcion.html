@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Eliminar Suscripción - Mercadito Go</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f9f9f9;
+      padding: 40px;
+    }
+    .container {
+      max-width: 400px;
+      margin: auto;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    img {
+      max-width: 200px;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background: #d9534f;
+      color: white;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #c9302c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="MERCADITOGO COLOR PNG.png" alt="Mercadito Go Logo">
+    <h2>Eliminar Suscripción</h2>
+    <p>Ingresa tu correo electrónico para solicitar la eliminación de tu suscripción.</p>
+    <input type="email" id="email" placeholder="tuemail@ejemplo.com" required>
+    <br>
+    <button onclick="enviarMail()">Eliminar Suscripción</button>
+  </div>
+
+  <script>
+    function enviarMail() {
+      const email = document.getElementById("email").value.trim();
+      if (!email) {
+        alert("Por favor ingresa tu correo.");
+        return;
+      }
+      const destinatario = "mecaditogo59@gmail.com";
+      const asunto = encodeURIComponent("Solicitud de Eliminar Suscripción");
+      const cuerpo = encodeURIComponent(
+        `Solicito eliminar la suscripción del siguiente correo: ${email}`
+      );
+      window.location.href = `mailto:${destinatario}?subject=${asunto}&body=${cuerpo}`;
+    }
+  </script>
+</body>
+</html>
